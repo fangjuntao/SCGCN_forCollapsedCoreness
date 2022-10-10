@@ -499,7 +499,8 @@ if __name__ == "__main__":
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
 	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness", help="Input data folder")
 	parser.add_argument("--verbose", default=True, type=bool)
-	parser.add_argument("--k", default=20, type=int, help = "the k core to be collesped") # options [20, 30, 40]
+	#parser.add_argument("--k", default=20, type=int, help = "the k core to be collesped") # options [20, 30, 40]
+	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
 	parser.add_argument("--b", default=5, type=int, help = "the result set size")
 
 	# unused parameters
