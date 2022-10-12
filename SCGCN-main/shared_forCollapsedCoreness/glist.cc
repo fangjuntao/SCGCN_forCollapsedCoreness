@@ -8,6 +8,11 @@
 
 #include "defs.h"
 
+
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
+
 namespace core {
 GLIST::GLIST(const int n): n_(n), tree_(n_), heap_(n_), __n_(n), __tree_(n_), __heap_(n_) {
   head_ = std::vector<int>(n_, -1);
@@ -633,3 +638,18 @@ void GLIST::__PropagateDismissal(const std::vector<std::vector<int>>& graph,
   }
 }
 }  // namespace core
+
+
+
+PYBIND11_MODULE(glist, m){
+    pybind11::class_<GLIST>(m, "GLIST")
+        .def(pybind11::init())
+        .def("ComputeCore", &GLIST::ComputeCore)
+        .def("Insert", &Graph::Insert)
+        .def("Remove", &Graph::Remove)
+        .def("CalcFollow", &Graph::CalcFollow)
+        .def("Check", &Graph::Check)
+        .def("Keep", &Graph::Keep)
+        .def("PropagateDismissal", &Graph::PropagateDismissal)
+        .def("PropagateDismissal", &Graph::PropagateDismissal);
+}

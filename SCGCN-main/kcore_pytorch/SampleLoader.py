@@ -1,3 +1,4 @@
+#encoding:utf-8
 import numpy as np
 import networkx as nx
 import os
@@ -99,8 +100,8 @@ def load_graph(fname):
 	G = nx.Graph()
 	G.add_edges_from(Edges)
 	G.remove_edges_from(G.selfloop_edges())
-	print('number of nodes:', G.number_of_nodes())
-	print('number of edges:', G.number_of_edges())
+	print('number of nodes in graph:', G.number_of_nodes())
+	print('number of edges in graph:', G.number_of_edges())
 	file.close()
 	return G
 
@@ -134,8 +135,8 @@ def load_tmp_core(fname):
 
 def extract_kcore(input_folder, k):
 	fname = os.path.join(input_folder, "graph.txt")
-	graph = load_graph(fname)
-	graph.remove_edges_from(graph.selfloop_edges())
+	graph = load_graph(fname)  #读data，存为图（nx.Graph()）
+	graph.remove_edges_from(graph.selfloop_edges())  #去除自环（实际上 load_graph(fname)已经有这步操作了）
 	core = nx.k_core(graph, k)   
 	print("# nodes in %d core: %d"%(k, core.number_of_nodes()))
 	print("# edges in %d core: %d"%(k, core.number_of_edges()))
@@ -163,7 +164,7 @@ def data_preprocessing(gname, k, load_traindata=True):
 	Y_train = A.astype(np.float32)
 	deg_norm = np.sum(Y_train, axis = 0)
 	G = kcore.Graph()
-	G.loadUndirGraph(gname) # load the c++ graph object
+	G.loadUndirGraph(gname) # load the c++ graph object ,将core用C++存储
 	
 
 	X_norm = np.array(G.KCoreCollapseDominate(k)) # list

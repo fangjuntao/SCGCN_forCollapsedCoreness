@@ -484,7 +484,7 @@ if __name__ == "__main__":
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=8, type=int) # options: [32, 64, 128]
+	parser.add_argument("--batch_size", default=1, type=int) # options: [32, 64, 128]
 	parser.add_argument("--steps", default=2, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
