@@ -7,6 +7,7 @@ import networkx as nx
 import os
 import torch
 import kcore
+from ctypes import *     #为了调用C++代码
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -15,6 +16,12 @@ from torch.utils.data import DataLoader
 from pygcn import GCN, GCNAtt
 from earlystopping import EarlyStopping
 from SampleLoader import * 
+from ctypes import *
+
+import os
+
+glist= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/example2.so")
+
 
 
 def get_lr(optimizer):

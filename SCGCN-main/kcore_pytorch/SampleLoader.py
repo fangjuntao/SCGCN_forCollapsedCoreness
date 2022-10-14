@@ -12,6 +12,12 @@ from math import log
 import scipy.sparse as sp
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
+from ctypes import *
+
+import os
+
+glist= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/example2.so")
+
 
 def generate_features(core, n_node):
 	feat1 = np.zeros(shape = (n_node,))
@@ -161,6 +167,9 @@ def data_preprocessing(gname, k, load_traindata=True):
 	
 	A = nx.adjacency_matrix(core).todense()
 	A = np.array(A)
+	B = A.tolist()
+	GLIST = glist.GLIST(core.number_of_nodes())
+	GLIST.ComputeCore(B,True,)
 	Y_train = A.astype(np.float32)
 	deg_norm = np.sum(Y_train, axis = 0)
 	G = kcore.Graph()

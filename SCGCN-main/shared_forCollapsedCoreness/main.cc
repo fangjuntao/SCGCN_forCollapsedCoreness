@@ -287,26 +287,55 @@ int lower_bound(int x)
     return sum;
 }
 
-int main(int argc, char** argv)
+
+vector<int> getCoreness(string input_txt)
 {
-    if (argc<3)
-    {
-        printf("Usage: ./core data budge\n");
-        return 0;
-    }
-    int n, m, m2;
+
+    int n, m;
     char input[100],output[100];
-    budget=atoi(argv[2]);
-    sprintf(input,"%s.txt",argv[1]);
-    sprintf(output,"%s-%d-GCC.txt",argv[1],budget);
+    // budget=atoi(argv[2]);
+    sprintf(input,"%s.txt","data");
+    // sprintf(output,"%s-%d-GCC.txt",argv[1],budget);
     freopen(input,"r",stdin);
-    freopen(output,"w",stdout);
+    //freopen(output,"w",stdout);
     scanf("%d%d",&n,&m);
     // read the graph
     ReadEdgesS(n, m);
     // initialize the core component
-    core::CoreMaintenance* cm = nullptr;
-    cm = new core::GLIST(n);
+    core::CoreMaintenance* cm = nullptr;  //函数指针
+    cm = new core::GLIST(n);   //构造函数
+    // create the adjacent list representation
+    vector<vector<int>> graph(n);
+    for (int i=0;i<n;i++)
+        graph[i]=edge[i];
+    vector<int> core(n);
+    cm->ComputeCore(graph, true, core);
+    return core ;
+}
+
+int main(int argc, char** argv)
+{
+    // if (argc<3)
+    // {
+    //     printf("Usage: ./core data budge\n");
+    //     return 0;
+    // }
+    char* argv2[]={"","data","3"};
+    argv=argv2;
+
+    int n, m, m2;
+    char input[100],output[100];
+    budget=atoi(argv[2]);
+    sprintf(input,"%s.txt","data");
+    sprintf(output,"%s-%d-GCC.txt",argv[1],budget);
+    freopen(input,"r",stdin);
+    //freopen(output,"w",stdout);
+    scanf("%d%d",&n,&m);
+    // read the graph
+    ReadEdgesS(n, m);
+    // initialize the core component
+    core::CoreMaintenance* cm = nullptr;  //函数指针
+    cm = new core::GLIST(n);   //构造函数
     // create the adjacent list representation
     vector<vector<int>> graph(n);
     for (int i=0;i<n;i++)
@@ -315,6 +344,8 @@ int main(int argc, char** argv)
     cm->ComputeCore(graph, true, core);
     for (int i=0;i<n;i++)
         ppp[i]=core[i],pre[i]=core[i];
+    // for(int i=0;i<n;i++ )
+    //     printf("%d\n",core[i]);
     auto Starttime=(double)clock();
     int Max_follower=0,Max_follower_pos=0;
     for (int x=0;x<n;x++)
