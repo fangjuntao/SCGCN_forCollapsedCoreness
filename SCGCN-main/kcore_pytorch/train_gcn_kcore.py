@@ -20,7 +20,7 @@ from ctypes import *
 
 import os
 
-glist= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/example2.so")
+Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libcoreness.so")
 
 
 

@@ -16,7 +16,7 @@ from ctypes import *
 
 import os
 
-glist= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/example2.so")
+Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libcoreness.so")
 
 
 def generate_features(core, n_node):
@@ -168,15 +168,12 @@ def data_preprocessing(gname, k, load_traindata=True):
 	A = nx.adjacency_matrix(core).todense()
 	A = np.array(A)
 	B = A.tolist()
-	GLIST = glist.GLIST(core.number_of_nodes())
-	GLIST.ComputeCore(B,True,)
 	Y_train = A.astype(np.float32)
 	deg_norm = np.sum(Y_train, axis = 0)
 	G = kcore.Graph()
 	G.loadUndirGraph(gname) # load the c++ graph object ,将core用C++存储
-	
 
-	X_norm = np.array(G.KCoreCollapseDominate(k)) # list
+	X_norm = np.array(Coreness.getCoreness("/home/JuntaoFang/collapsedCoreness-main/data.txt")) # list
 	non_dominated = G.getUnDominated() # list
 	n_classes = len(non_dominated)
 	def to_nondomin_dict(non_dominated): # create dict: graph node id --> class idx
