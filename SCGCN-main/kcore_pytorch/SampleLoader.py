@@ -16,7 +16,7 @@ from ctypes import *
 
 import os
 
-Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libcoreness.so")
+Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
 def generate_features(core, n_node):
@@ -143,7 +143,7 @@ def extract_kcore(input_folder, k):
 	fname = os.path.join(input_folder, "graph.txt")
 	graph = load_graph(fname)  #读data，存为图（nx.Graph()）
 	graph.remove_edges_from(graph.selfloop_edges())  #去除自环（实际上 load_graph(fname)已经有这步操作了）
-	core = nx.k_core(graph, k)   
+	core = nx.k_core(graph, k)   # coreness问题让k=1即可
 	print("# nodes in %d core: %d"%(k, core.number_of_nodes()))
 	print("# edges in %d core: %d"%(k, core.number_of_edges()))
 	gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
@@ -162,8 +162,9 @@ def extract_kcore(input_folder, k):
 				node_cnt += 1
 			file.writelines(str(node_dict[src]) + '\t' + str(node_dict[dst]) + '\n')
 
+
 def data_preprocessing(gname, k, load_traindata=True):
-	core = load_tmp_core(gname)
+	core = load_tmp_core2(gname)
 	
 	A = nx.adjacency_matrix(core).todense()
 	A = np.array(A)
@@ -172,10 +173,20 @@ def data_preprocessing(gname, k, load_traindata=True):
 	deg_norm = np.sum(Y_train, axis = 0)
 	G = kcore.Graph()
 	G.loadUndirGraph(gname) # load the c++ graph object ,将core用C++存储
+	#X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！需要更改
+	# Coreness.getCoreness(4039, 88234);
+	# coreness  = nx.core_number(core);
+	X_norm = []
+	nodesNum = core.number_of_nodes()
+	for i in range(0,nodesNum):
+		followerNums = calFollower(gname,i)
+		X_norm.append(followerNums);
 
-	X_norm = np.array(Coreness.getCoreness("/home/JuntaoFang/collapsedCoreness-main/data.txt")) # list
-	non_dominated = G.getUnDominated() # list
-	n_classes = len(non_dominated)
+	X_norm = np.array(X_norm)
+
+	#X_norm = np.array(Coreness.getCoreness(4039,88234)) # list
+	# non_dominated = G.getUnDominated() # list  ！！！需要更改
+	#n_classes = len(non_dominated)  # ！！！需要更改  得到需要预测的节点数（类）
 	def to_nondomin_dict(non_dominated): # create dict: graph node id --> class idx
 		nondomin_dict = {}
 		cnt = 0
@@ -217,7 +228,55 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 	shape = torch.Size(sparse_mx.shape)
 	return torch.sparse.FloatTensor(indices, values, shape)
 
+def load_tmp_core2(fname):    #按照文件顺序读取图的边，不改变点的id
+    file = open(fname)
+    Edges = []
+    node_dict = {}
+    node_cnt = 0
+    line_cnt = 0
+    for line in file:
+        line_cnt += 1
+        if line_cnt == 1:
+            continue
+        src = int(line.strip().split()[0])
+        if src not in node_dict:
+            node_dict[src] = node_cnt
+            node_cnt += 1
+        dst = int(line.strip().split()[1])
+        if dst not in node_dict:
+            node_dict[dst] = node_cnt
+            node_cnt += 1
+        weight = np.random.random_sample()
+        Edges.append((src, dst, {"weight": weight}))
 
+    G = nx.Graph()
+    # G = nx.DiGraph()
+    G.add_edges_from(Edges)
+    print('# nodes in core:', G.number_of_nodes())
+    print('# edges in core:', G.number_of_edges())
+    file.close()
+    return G
+
+
+def calFollower(gname, v):
+
+    core = load_tmp_core2(gname);
+
+    coreness1 = nx.core_number(core);
+
+    follower = 0
+    core.remove_node(v)  # 删除节点v 以及边
+
+    coreness2 = nx.core_number(core);
+    for k in coreness2.items():
+        nodeNum1 = k[0];
+        nodeNum2 = k[0];
+        if coreness1[nodeNum1] > coreness2[nodeNum2]:
+                follower = follower + 1
+        else:
+                pass
+
+    return follower
 
 def normalized_laplacian(adj):
    adj = sp.coo_matrix(adj)

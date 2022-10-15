@@ -7,7 +7,7 @@ import networkx as nx
 import os
 import torch
 import kcore
-from ctypes import *     #为了调用C++代码
+
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -20,7 +20,7 @@ from ctypes import *
 
 import os
 
-Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libcoreness.so")
+Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
 
@@ -491,8 +491,8 @@ if __name__ == "__main__":
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=1, type=int) # options: [32, 64, 128]
-	parser.add_argument("--steps", default=2, type=int)  # options:  (1000, 2000, ... 40000)
+	parser.add_argument("--batch_size", default=100, type=int) # options: [32, 64, 128]
+	parser.add_argument("--steps", default=2000, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
 						help='Disables CUDA training.')
@@ -506,7 +506,7 @@ if __name__ == "__main__":
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
 	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness", help="Input data folder")
 	parser.add_argument("--verbose", default=True, type=bool)
-	#parser.add_argument("--k", default=20, type=int, help = "the k core to be collesped") # options [20, 30, 40]
+	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
 	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
 	parser.add_argument("--b", default=5, type=int, help = "the result set size")
 
