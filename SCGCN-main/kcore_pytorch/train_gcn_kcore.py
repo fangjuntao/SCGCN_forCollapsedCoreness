@@ -184,7 +184,7 @@ def gen_kcore_union(args, model, adj):
 			t_pred = pred + mask
 			oidx = np.argmax(t_pred)
 			#print("max pred: %8f min pred: %8f"%(np.max(pred), np.min(pred)))      
-			# must not raise exception, if so, something wrong with data
+			# must not raise exception, if so, something wrong with data.txt
 			g_id = non_dominated[oidx]
 			mask[oidx] = -1000000000.0
 			res.append(oidx)
@@ -353,7 +353,7 @@ def gen_kcore_sep(args, model, adj):
 	pred_all = predict_all(args, model = model, data = data, adj = adj)
 	
 	while cnt < b:
-			#data = np.array(res[-w:])
+			#data.txt = np.array(res[-w:])
 			pred = np.zeros(shape=(1, n_classes), dtype=int)
 			for r in res_node:
 					pred = pred + pred_all[r] # * X_norm[r] 
@@ -412,7 +412,7 @@ def main(args):
 
 	train_norm, n_classes, non_dominated, nondomin_dict, graph, G = build_dataset(input_folder, k)
 	if verbose:
-		print("training data shape: ")
+		print("training data.txt shape: ")
 		print(train_norm.shape)
 
 	# define the training dataset and dataloader 
@@ -434,6 +434,7 @@ def main(args):
 	val_dataloader = DataLoader(val_dataset, batch_size = 100, 
 		shuffle = False, sampler = None)
 	val_data = next(iter(val_dataloader))
+
 
 	# define the model
 	nfeat = 1 + n_feats if ef > 0 else 1
@@ -480,10 +481,10 @@ def main(args):
 if __name__ == "__main__":
 	parser = ArgumentParser("gcn", formatter_class=ArgumentDefaultsHelpFormatter, conflict_handler="resolve")
 	# Model settings
-	parser.add_argument("--n_hid1", default=256, type=int, help ="first layer of GCN: number of hidden units") # options [64, 128, 256]
-	parser.add_argument("--n_hid2", default=256, type=int, help ="second layer of GCN: number of hidden units") # options [64, 128, 256]
-	parser.add_argument("--n_expert", default=256, type=int, help ="attention layer: number of experts") # options [16, 32, 64, 128]
-	parser.add_argument("--att_hid", default=256, type=int, help ="attention layer: hidden units") # options [64, 128, 256]
+	parser.add_argument("--n_hid1", default=128, type=int, help ="first layer of GCN: number of hidden units") # options [64, 128, 256]
+	parser.add_argument("--n_hid2", default=128, type=int, help ="second layer of GCN: number of hidden units") # options [64, 128, 256]
+	parser.add_argument("--n_expert", default=128, type=int, help ="attention layer: number of experts") # options [16, 32, 64, 128]
+	parser.add_argument("--att_hid", default=128, type=int, help ="attention layer: hidden units") # options [64, 128, 256]
 	parser.add_argument("--model_dir", type=str, default="./GCN_model1.pt")
 	parser.add_argument('--dropout', type=float, default=0.5,
 						help='Dropout rate (1 - keep probability).')
@@ -491,7 +492,7 @@ if __name__ == "__main__":
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=100, type=int) # options: [32, 64, 128]
+	parser.add_argument("--batch_size", default=10, type=int) # options: [32, 64, 128]
 	parser.add_argument("--steps", default=2000, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
@@ -504,7 +505,7 @@ if __name__ == "__main__":
 	#Others
 	parser.add_argument("--extra_feats", default=0, type=int, 
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness", help="Input data folder")
+	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness", help="Input data.txt folder")
 	parser.add_argument("--verbose", default=True, type=bool)
 	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
 	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
@@ -513,7 +514,7 @@ if __name__ == "__main__":
 	# unused parameters
 	'''
 	parser.add_argument("--dev_data_file", default = "")
-	parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data to generate/load
+	parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data.txt to generate/load
 	parser.add_argument('--lradjust',action='store_true', default=False, 
 		help = 'Enable leraning rate adjust.(ReduceLROnPlateau)')
 	parser.add_argument("--debug_samplingpercent", type=float, default=1.0, 

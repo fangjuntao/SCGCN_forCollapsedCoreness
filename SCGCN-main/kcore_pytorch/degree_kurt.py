@@ -39,7 +39,7 @@ def main(fname):
 if __name__ == "__main__":
 	parser = ArgumentParser("dnn", formatter_class=ArgumentDefaultsHelpFormatter, conflict_handler="resolve")
 	#Required 
-	parser.add_argument("--fname", default="data/wv", help="Input data folder")
+	parser.add_argument("--fname", default="data.txt/wv", help="Input data.txt folder")
 	args = parser.parse_args() 
 	print(args)
 	fname = args.fname

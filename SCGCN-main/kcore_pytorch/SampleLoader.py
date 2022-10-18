@@ -1,4 +1,5 @@
-#encoding:utf-8
+# encoding:utf-8
+import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
 import os
@@ -13,34 +14,81 @@ import scipy.sparse as sp
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 from ctypes import *
+from multiprocessing import Pool
 
 import os
+import copy
 
 Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
+def swap(t1, t2):
+    return t2, t1
+
+
 def generate_features(core, n_node):
-	feat1 = np.zeros(shape = (n_node,))
-	feat2 = np.zeros(shape = (n_node,))
-	feat_cc = np.zeros(shape = (n_node,))
-	core_num = nx.core_number(core)   # core_number: the largest k_core which is included the node
-	core_deg = dict(core.degree())    # node degree
-	core_cc = nx.clustering(core) # the local clustering coefficient
-	feat_cc[list(core_cc.keys())] = list(core_cc.values()) # local cluster coefficient of each node 
-	feat1[list(core_num.keys())] = list(core_num.values()) # core number of each node
-	feat2[list(core_deg.keys())] = list(core_deg.values()) # degree of each node
-	coremx = nx.adjacency_matrix(core).todense()
-	all_core_num = coremx * np.diag(list(core_num.values()))
-	feat3 = np.sort(all_core_num)[:, -5:] # top 5 largest core number of neighbors
-	feats = np.vstack((feat1, feat2, feat_cc)).transpose()
-	feats = np.hstack((feats, feat3))
-	n_feats = feats.shape[1]
-	return feats, n_feats
+    feat1 = np.zeros(shape=(n_node,))
+    feat2 = np.zeros(shape=(n_node,))
+    feat_cc = np.zeros(shape=(n_node,))
+    core_num = nx.core_number(core)  # core_number: the largest k_core which is included the node
+    core_deg = dict(core.degree())  # node degree
+    core_cc = nx.clustering(core)  # the local clustering coefficient
+    feat_cc[list(core_cc.keys())] = list(core_cc.values())  # local cluster coefficient of each node
+    feat1[list(core_num.keys())] = list(core_num.values())  # core number of each node
+    feat2[list(core_deg.keys())] = list(core_deg.values())  # degree of each node
+    coremx = nx.adjacency_matrix(core).todense()
+    all_core_num = coremx * np.diag(list(core_num.values()))
+    feat3 = np.sort(all_core_num)[:, -5:]  # top 5 largest core number of neighbors
+    feats = np.vstack((feat1, feat2, feat_cc)).transpose()
+    feats = np.hstack((feats, feat3))
+    n_feats = feats.shape[1]
+    return feats, n_feats
+
+
+def collapsedCorenessLabelGeneration(core, idx):
+    coreNew = copy.deepcopy(core)
+
+    # core 为networkX Graph()，idx为 ndrray(numpy)
+    node_num = coreNew.number_of_nodes()
+    coreness1 = nx.core_number(coreNew)
+
+    label = []
+
+    removeNodes = idx.tolist()
+    coreNew.remove_nodes_from(removeNodes)  # 删除节点v 以及边
+
+    coreness2 = nx.core_number(coreNew)
+
+
+
+    for i in removeNodes:
+        del coreness1[i]
+
+    coreness1 = np.array(list(coreness1.values()))
+    coreness2 = np.array(list(coreness2.values()))
+    corenessLoss = np.sum(coreness1-coreness2)
+
+
+
+
+    # pool=Pool(10)
+    # X_norm=list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)] ))
+    f = 0
+    for i in range(0, node_num):
+        core_tmp = copy.deepcopy(coreNew)
+        if i in removeNodes:
+            f = 0
+        else:
+            f = calCorenessLoss(core_tmp, i)
+        label.append(f + corenessLoss)
+
+    return np.array(label)
+
 
 class SampleDataset(Dataset):
-	def __init__(self, n_classes, n_node, non_dominated, X_norm, 
-		extra_feats, ef, G, set_size, k, batch_size):
-		'''
+    def __init__(self, n_classes, n_node, non_dominated, X_norm,
+                 extra_feats, ef, G, set_size, k, batch_size):
+        '''
 		n_clases: number of predict classes 
 		n_node: number of nodes of graph
 		non_dominated:  list (index: class id, value: non_dominated node id)
@@ -50,185 +98,150 @@ class SampleDataset(Dataset):
 		G: core (c++ object)
 		set_size: b
 		'''
-		self.n_classes = n_classes
-		self.n_node = n_node
-		self.non_dominated = np.array(non_dominated)
-		self.X_norm = X_norm
-		self.extra_feats = extra_feats # numpy ndarray dim: n_node * n_feats
-		self.ef = ef
-		self.G = G
-		self.set_size = set_size
-		self.k = k
-		self.batch_size = batch_size
-		self.p = X_norm / float(np.sum(X_norm))
+        self.n_classes = n_classes
+        self.n_node = n_node
+        self.non_dominated = np.array(non_dominated)
+        self.X_norm = X_norm
+        self.extra_feats = extra_feats  # numpy ndarray dim: n_node * n_feats
+        self.ef = ef
+        self.G = G
+        self.set_size = set_size
+        self.k = k
+        self.batch_size = batch_size
+        self.p = X_norm / float(np.sum(X_norm))
+
+    def __getitem__(self, index):
+        s_size = random.randint(3, self.set_size - 1)
+        idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
+        x = np.zeros((self.n_node, 1), dtype=np.float32)
+        g_idx = self.non_dominated[idx]
+        x[g_idx] = 1  # remap to the graph id
+        if self.ef > 0:
+            x = np.hstack((x, self.extra_feats))
+            x = torch.FloatTensor(x)
+        y = np.array(self.G.KCoreLabelGeneration2(self.k, idx))  # 计算每个点加入该集合后的总共的follower数量
+        weight = y
+        w = np.min(y).reshape((1,))  # y中的最小值
+        y = y - w + 1  # 区间变为从1开始
+        y = y.astype(np.float32) / np.sum(y)  # 归一化的最后一步
+        # print(x.shape, y.shape)
+        return x, weight, y  # return (features, weight), label
+
+    def __len__(self):
+        return self.batch_size
 
 
-	def __getitem__(self, index):
-		s_size = random.randint(3, self.set_size - 1)
-		idx = np.random.choice(self.n_classes, size= s_size, replace = False, p=self.p) 
-		x = np.zeros((self.n_node, 1), dtype = np.float32)
-		g_idx = self.non_dominated[idx]
-		x[g_idx] = 1  # remap to the graph id
-		if self.ef > 0:
-			x = np.hstack((x, self.extra_feats))
-			x = torch.FloatTensor(x)
-		y = np.array(self.G.KCoreLabelGeneration2(self.k, idx))
-		weight = y
-		w = np.min(y).reshape((1,))
-		y = y - w + 1
-		y = y.astype(np.float32) / np.sum(y)
-		#print(x.shape, y.shape)
-		return x, weight, y #  return (features, weight), label
+class SampleDatasetCoreness(Dataset):
+    def __init__(self, n_classes, n_node, X_norm,
+                 extra_feats, ef, G, set_size, k, batch_size):
+        '''
+		n_clases: number of predict classes
+		n_node: number of nodes of graph
+		X_norm: to compute sample probability
+		extra_feats: extra features on nodes generated by 'generate_features'
+		ef: whether or not extra_feats is available
+		G: core (networkX Graph)
+		set_size: b
+		'''
 
-	def __len__(self):
-		return self.batch_size
+        self.n_classes = n_classes
+        self.n_node = n_node
+        # self.non_dominated = np.array(non_dominated)
+        self.X_norm = X_norm
+        self.extra_feats = extra_feats  # numpy ndarray dim: n_node * n_feats
+        self.ef = ef
+        self.G = G  # core (networkX Graph)
+        self.set_size = set_size
+        self.k = k
+        self.batch_size = batch_size
+        self.p = X_norm / float(np.sum(X_norm))
+
+    def __getitem__(self, index):
+        s_size = random.randint(3, self.set_size - 1)
+        idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
+        x = np.zeros((self.n_node, 1), dtype=np.float32)
+        # g_idx = self.non_dominated[idx]
+        # x[g_idx] = 1  # remap to the graph id
+        x[idx] = 1
+        if self.ef > 0:
+            x = np.hstack((x, self.extra_feats))
+            x = torch.FloatTensor(x)
+        y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
+        weight = y
+        w = np.min(y).reshape((1,))
+        y = y - w + 1
+        y = y.astype(np.float32) / np.sum(y)
+        # print(x.shape, y.shape)
+        return x, weight, y  # return (features, weight), label
+
+    def __len__(self):
+        return self.batch_size
 
 
 def load_graph(fname):
-	file = open(fname)
-	Edges = []
-	node_dict = {}
-	node_cnt = 0
-	for line in file:
-		if line.strip().startswith("#"):
-			continue
-		src = int(line.strip().split()[0])
-		if src not in node_dict:
-			node_dict[src] = node_cnt
-			node_cnt += 1
-		dst = int(line.strip().split()[1])
-		if dst not in node_dict:
-			node_dict[dst] = node_cnt
-			node_cnt += 1
-		weight = np.random.random_sample()
-		Edges.append((node_dict[src], node_dict[dst], {"weight": weight}))
+    file = open(fname)
+    Edges = []
+    node_dict = {}
+    node_cnt = 0
+    for line in file:
+        if line.strip().startswith("#"):
+            continue
+        src = int(line.strip().split()[0])
+        if src not in node_dict:
+            node_dict[src] = node_cnt
+            node_cnt += 1
+        dst = int(line.strip().split()[1])
+        if dst not in node_dict:
+            node_dict[dst] = node_cnt
+            node_cnt += 1
+        weight = np.random.random_sample()
+        Edges.append((node_dict[src], node_dict[dst], {"weight": weight}))
 
-	G = nx.Graph()
-	G.add_edges_from(Edges)
-	G.remove_edges_from(G.selfloop_edges())
-	print('number of nodes in graph:', G.number_of_nodes())
-	print('number of edges in graph:', G.number_of_edges())
-	file.close()
-	return G
+    G = nx.Graph()
+    G.add_edges_from(Edges)
+    G.remove_edges_from(G.selfloop_edges())
+    print('number of nodes in graph:', G.number_of_nodes())
+    print('number of edges in graph:', G.number_of_edges())
+    file.close()
+    return G
+
+
+def load_graph_forCoreness(fname):
+    # 有bug: 不仅会删除重边，非重边也会被误删
+    file = open(fname)
+    Edges = []
+    src_dict = {}
+    dst_dict = {}
+    for line in file:
+        if line.strip().startswith("#"):
+            continue
+        src = int(line.strip().split()[0])
+        dst = int(line.strip().split()[1])
+        if src > dst:
+            src, dst = swap(src, dst)
+
+        if src in src_dict and dst in dst_dict:
+            pass
+        else:
+            weight = np.random.random_sample()
+            Edges.append((src, dst, {"weight": weight}))
+
+            src_dict[src] = 1
+
+            dst_dict[dst] = 1
+
+    G = nx.Graph()
+    G.add_edges_from(Edges)
+    G.remove_edges_from(G.selfloop_edges())
+    print('number of nodes in graph:', G.number_of_nodes())
+    print('number of edges in graph:', G.number_of_edges())
+    file.close()
+    # nx.draw(G, node_size=30, with_label=True)
+    # plt.show()
+    return G
+
 
 def load_tmp_core(fname):
-	file = open(fname)
-	Edges = []
-	node_dict = {}
-	node_cnt = 0
-	line_cnt = 0
-	for line in file:
-		line_cnt += 1
-		if line_cnt == 1:
-			continue
-		src = int(line.strip().split()[0])
-		if src not in node_dict:
-			node_dict[src] = node_cnt
-			node_cnt += 1
-		dst = int(line.strip().split()[1])
-		if dst not in node_dict:
-			node_dict[dst] = node_cnt
-			node_cnt += 1
-		weight = np.random.random_sample()
-		Edges.append((node_dict[src], node_dict[dst], {"weight": weight}))
-
-	G = nx.Graph()
-	G.add_edges_from(Edges)
-	print('# nodes in core:', G.number_of_nodes())
-	print('# edges in core:', G.number_of_edges())
-	file.close()
-	return G
-
-def extract_kcore(input_folder, k):
-	fname = os.path.join(input_folder, "graph.txt")
-	graph = load_graph(fname)  #读data，存为图（nx.Graph()）
-	graph.remove_edges_from(graph.selfloop_edges())  #去除自环（实际上 load_graph(fname)已经有这步操作了）
-	core = nx.k_core(graph, k)   # coreness问题让k=1即可
-	print("# nodes in %d core: %d"%(k, core.number_of_nodes()))
-	print("# edges in %d core: %d"%(k, core.number_of_edges()))
-	gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
-	node_dict = {}
-	node_cnt = 0
-	
-	with open(gname, "w") as file:
-		file.writelines(str(core.number_of_nodes()) + '\t' + str(core.number_of_edges()) + '\n')
-		for edge in core.edges():
-			src, dst = str(edge[0]), str(edge[1])
-			if src not in node_dict:
-				node_dict[src] = node_cnt
-				node_cnt += 1
-			if dst not in node_dict:
-				node_dict[dst] = node_cnt
-				node_cnt += 1
-			file.writelines(str(node_dict[src]) + '\t' + str(node_dict[dst]) + '\n')
-
-
-def data_preprocessing(gname, k, load_traindata=True):
-	core = load_tmp_core2(gname)
-	
-	A = nx.adjacency_matrix(core).todense()
-	A = np.array(A)
-	B = A.tolist()
-	Y_train = A.astype(np.float32)
-	deg_norm = np.sum(Y_train, axis = 0)
-	G = kcore.Graph()
-	G.loadUndirGraph(gname) # load the c++ graph object ,将core用C++存储
-	#X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！需要更改
-	# Coreness.getCoreness(4039, 88234);
-	# coreness  = nx.core_number(core);
-	X_norm = []
-	nodesNum = core.number_of_nodes()
-	for i in range(0,nodesNum):
-		followerNums = calFollower(gname,i)
-		X_norm.append(followerNums);
-
-	X_norm = np.array(X_norm)
-
-	#X_norm = np.array(Coreness.getCoreness(4039,88234)) # list
-	# non_dominated = G.getUnDominated() # list  ！！！需要更改
-	#n_classes = len(non_dominated)  # ！！！需要更改  得到需要预测的节点数（类）
-	def to_nondomin_dict(non_dominated): # create dict: graph node id --> class idx
-		nondomin_dict = {}
-		cnt = 0
-		for u in non_dominated:
-			nondomin_dict[u] = cnt
-			cnt += 1
-		return nondomin_dict
-	nondomin_dict = to_nondomin_dict(non_dominated) 
-	deg_norm = np.array(deg_norm[non_dominated])
-	return (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
-
-def build_dataset(input_folder, k, load_traindata=True):
-	gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
-	core_exists = os.path.isfile(gname)
-	if not core_exists: # if not have the core file, compute it on the fly
-	  extract_kcore(input_folder, k)
-	(X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, load_traindata)
-	
-	return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G) 
-
-def build_testset(input_folder, k):
-	gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
-	(X_norm, _, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, True)
-	return (X_norm, n_classes, non_dominated, nondomin_dict, core, G)
-
-
-def generate_adjmx(graph, normalization):
-	adj_normalizer = fetch_normalization(normalization)
-	adj = nx.to_scipy_sparse_matrix(graph) 
-	adj = adj_normalizer(adj).todense()
-	return adj
-
-def sparse_mx_to_torch_sparse_tensor(sparse_mx):
-	"""Convert a scipy sparse matrix to a torch sparse tensor."""
-	sparse_mx = sparse_mx.tocoo().astype(np.float32)
-	indices = torch.from_numpy(
-		np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
-	values = torch.from_numpy(sparse_mx.data)
-	shape = torch.Size(sparse_mx.shape)
-	return torch.sparse.FloatTensor(indices, values, shape)
-
-def load_tmp_core2(fname):    #按照文件顺序读取图的边，不改变点的id
     file = open(fname)
     Edges = []
     node_dict = {}
@@ -247,136 +260,386 @@ def load_tmp_core2(fname):    #按照文件顺序读取图的边，不改变点�
             node_dict[dst] = node_cnt
             node_cnt += 1
         weight = np.random.random_sample()
-        Edges.append((src, dst, {"weight": weight}))
+        Edges.append((node_dict[src], node_dict[dst], {"weight": weight}))
 
     G = nx.Graph()
-    # G = nx.DiGraph()
     G.add_edges_from(Edges)
-    print('# nodes in core:', G.number_of_nodes())
-    print('# edges in core:', G.number_of_edges())
+    # print('# nodes in core:', G.number_of_nodes())
+    # print('# edges in core:', G.number_of_edges())
     file.close()
     return G
 
 
-def calFollower(gname, v):
+# def extract_kcore_Coreness(input_folder, k):
+#     # 保证不改变节点的id
+#     fname = os.path.join(input_folder, "data.txt")
+#     graph = load_graph_forCoreness(fname)  # 读data，存为图（nx.Graph()）
+#     graph.remove_edges_from(graph.selfloop_edges())  # 去除自环（实际上 load_graph(fname)已经有这步操作了）
+#     core = nx.k_core(graph, k)  # coreness问题让k=1即可
+#     print("# nodes in %d core: %d" % (k, core.number_of_nodes()))
+#     print("# edges in %d core: %d" % (k, core.number_of_edges()))
+#     gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+#     node_dict = {}
+#     node_cnt = 0
+#
+#     with open(gname, "w") as file:
+#         file.writelines(str(core.number_of_nodes()) + '\t' + str(core.number_of_edges()) + '\n')
+#         for edge in core.edges():
+#             src, dst = str(edge[0]), str(edge[1])
+#             if src not in node_dict:
+#                 node_dict[src] = node_cnt
+#                 node_cnt += 1
+#             if dst not in node_dict:
+#                 node_dict[dst] = node_cnt
+#                 node_cnt += 1
+#             file.writelines(str(src) + '\t' + str(dst) + '\n')
+#
 
-    core = load_tmp_core2(gname);
+def extract_kcore(input_folder, k):
+    fname = os.path.join(input_folder, "data.txt")
+    graph = load_graph(fname)  # 读data，存为图（nx.Graph()）
+    graph.remove_edges_from(graph.selfloop_edges())  # 去除自环（实际上 load_graph(fname)已经有这步操作了）
+    core = nx.k_core(graph, k)  # coreness问题让k=1即可
+    print("# nodes in %d core: %d" % (k, core.number_of_nodes()))
+    print("# edges in %d core: %d" % (k, core.number_of_edges()))
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    node_dict = {}
+    node_cnt = 0
+
+    with open(gname, "w") as file:
+        file.writelines(str(core.number_of_nodes()) + '\t' + str(core.number_of_edges()) + '\n')
+        for edge in core.edges():
+            src, dst = str(edge[0]), str(edge[1])
+            if src not in node_dict:
+                node_dict[src] = node_cnt
+                node_cnt += 1
+            if dst not in node_dict:
+                node_dict[dst] = node_cnt
+                node_cnt += 1
+            file.writelines(str(node_dict[src]) + '\t' + str(node_dict[dst]) + '\n')
+
+
+def data_preprocessing(gname, k, load_traindata=True):
+    core = load_tmp_core(gname)
+
+    A = nx.adjacency_matrix(core).todense()
+    A = np.array(A)
+    B = A.tolist()
+    Y_train = A.astype(np.float32)
+    deg_norm = np.sum(Y_train, axis=0) #求出每列元素的和
+    G = kcore.Graph()
+    print("gname:")
+    print gname
+    G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
+    X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！需要更改
+    # Coreness.getCoreness(4039, 88234);
+    # coreness  = nx.core_number(core);
+    # X_norm = []
+    # nodesNum = core.number_of_nodes()
+    # for i in range(0,nodesNum):
+    # 	followerNums = calFollower(gname,i)
+    # 	X_norm.append(followerNums);
+    #
+    # X_norm = np.array(X_norm)
+
+    # X_norm = np.array(Coreness.getCoreness(4039,88234)) # list
+    non_dominated = G.getUnDominated()  # list  ！！！需要更改
+    n_classes = len(non_dominated)  # ！！！需要更改  得到需要预测的节点数（类）
+
+    def to_nondomin_dict(non_dominated):  # create dict: graph node id --> class idx
+        nondomin_dict = {}
+        cnt = 0
+        for u in non_dominated:
+            nondomin_dict[u] = cnt
+            cnt += 1
+        return nondomin_dict
+
+    nondomin_dict = to_nondomin_dict(non_dominated)
+    print non_dominated,deg_norm[non_dominated],deg_norm
+    deg_norm = np.array(deg_norm[non_dominated])
+    return (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
+
+
+def data_preprocessingCoreness(gname, k, load_traindata=True):
+    core = load_tmp_core(gname)  # load_tmp_core2(gname)有bug
+
+    A = nx.adjacency_matrix(core).todense()
+    A = np.array(A)
+    B = A.tolist()
+    Y_train = A.astype(np.float32)
+    deg_norm = np.sum(Y_train, axis=0)
+    G = kcore.Graph()
+    G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
+
+
+    nodesNum = core.number_of_nodes()
+
+    pool=Pool(10)
+    X_norm=list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)] ))
+    # for i in range(0, nodesNum):
+    #     core_tmp = deepcopy(core)
+    #     followerNums = calFollower(core_tmp, i)
+    #     X_norm.append(followerNums)
+
+    X_norm = np.array(X_norm)
+
+    n_classes = nodesNum
+    return X_norm, deg_norm, n_classes, core, G
+
+
+def build_dataset(input_folder, k, load_traindata=True):
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    core_exists = os.path.isfile(gname)
+    if not core_exists:  # if not have the core file, compute it on the fly
+        extract_kcore(input_folder, k)
+    (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, load_traindata)
+
+    return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
+
+
+def build_datasetCoreness(input_folder, k, load_traindata=True):
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    core_exists = os.path.isfile(gname)
+    if not core_exists:  # if not have the core file, compute it on the fly
+        extract_kcore(input_folder, k)
+
+
+    (X_norm, deg_norm, n_classes, core, G) = data_preprocessingCoreness(gname, k, load_traindata)
+
+    return deg_norm, n_classes, core, G
+
+
+def build_testset(input_folder, k):
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    (X_norm, _, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, True)
+    return (X_norm, n_classes, non_dominated, nondomin_dict, core, G)
+
+
+def build_testsetCoreness(input_folder, k):
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    (X_norm, _, n_classes, core, G) = data_preprocessingCoreness(gname, k, True)
+    return (X_norm, n_classes, core, G)
+
+
+def generate_adjmx(graph, normalization):
+    adj_normalizer = fetch_normalization(normalization)
+    adj = nx.to_scipy_sparse_matrix(graph)
+    adj = adj_normalizer(adj).todense()
+    return adj
+
+
+def sparse_mx_to_torch_sparse_tensor(sparse_mx):
+    """Convert a scipy sparse matrix to a torch sparse tensor."""
+    sparse_mx = sparse_mx.tocoo().astype(np.float32)
+    indices = torch.from_numpy(
+        np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
+    values = torch.from_numpy(sparse_mx.data)
+    shape = torch.Size(sparse_mx.shape)
+    return torch.sparse.FloatTensor(indices, values, shape)
+
+
+# def load_tmp_core2(fname):
+#     # 按照文件顺序读取图的边，不改变点的id，同时去除重边
+#     # 有bug，部分非重边也会被删除
+#     file = open(fname)
+#     Edges = []
+#     src_dict = {}
+#     dst_dict = {}
+#
+#     line_cnt = 0
+#     for line in file:
+#         line_cnt += 1
+#         if line_cnt == 1:
+#             continue
+#         src = int(line.strip().split()[0])
+#         dst = int(line.strip().split()[1])
+#         if src > dst:
+#             src, dst = swap(src, dst)
+#
+#         if src in src_dict and dst in dst_dict:
+#             pass
+#         else:
+#             weight = np.random.random_sample()
+#             Edges.append((src, dst, {"weight": weight}))
+#
+#             src_dict[src] = 1
+#
+#             dst_dict[dst] = 1
+#
+#     G = nx.Graph()
+#     # G = nx.DiGraph()
+#     G.add_edges_from(Edges)
+#     print('# nodes in core:', G.number_of_nodes())
+#     print('# edges in core:', G.number_of_edges())
+#     file.close()
+#     return G
+#
+
+def calFollower(arag):
+    core_tmp, v=arag
+    core = deepcopy(core_tmp)
 
     coreness1 = nx.core_number(core);
 
-    follower = 0
+
     core.remove_node(v)  # 删除节点v 以及边
 
     coreness2 = nx.core_number(core);
-    for k in coreness2.items():
-        nodeNum1 = k[0];
-        nodeNum2 = k[0];
-        if coreness1[nodeNum1] > coreness2[nodeNum2]:
-                follower = follower + 1
-        else:
-                pass
 
-    return follower
+    del coreness1[v]
+
+    coreness1 = np.array(list(coreness1.values()))
+    coreness2 = np.array(list(coreness2.values()))
+    corenessLoss = np.sum(coreness1-coreness2)
+
+    return corenessLoss
+
+
+
+def calCorenessLoss(core, v):  # 移除单个节点时，它带来的coreness loss与计算其follower的数量相同
+
+    coreness1 = nx.core_number(core);
+
+
+    core.remove_node(v)  # 删除节点v 以及边
+
+    coreness2 = nx.core_number(core);
+
+    # for k in coreness2.items():
+    #     nodeNum1 = k[0];
+    #     nodeNum2 = k[0];
+    #     if coreness1[nodeNum1] > coreness2[nodeNum2]:
+    #         coreLoss_temp = coreness1[nodeNum1] - coreness2[nodeNum2]
+    #         corenessLoss = corenessLoss + coreLoss_temp
+    #     else:
+    #         pass
+
+    del coreness1[v]
+
+    coreness1 = np.array(list(coreness1.values()))
+    coreness2 = np.array(list(coreness2.values()))
+    corenessLoss = np.sum(coreness1-coreness2)
+
+    return corenessLoss
+
 
 def normalized_laplacian(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return (sp.eye(adj.shape[0]) - d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return (sp.eye(adj.shape[0]) - d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
 
 
 def laplacian(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1)).flatten()
-   d_mat = sp.diags(row_sum)
-   return (d_mat - adj).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1)).flatten()
+    d_mat = sp.diags(row_sum)
+    return (d_mat - adj).tocoo()
 
 
 def gcn(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return (sp.eye(adj.shape[0]) + d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return (sp.eye(adj.shape[0]) + d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
 
 
 def aug_normalized_adjacency(adj):
-   adj = adj + sp.eye(adj.shape[0])
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt).tocoo()
+    adj = adj + sp.eye(adj.shape[0])
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt).tocoo()
+
 
 def bingge_norm_adjacency(adj):
-   adj = adj + sp.eye(adj.shape[0])
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt) +  sp.eye(adj.shape[0])).tocoo()
+    adj = adj + sp.eye(adj.shape[0])
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt) + sp.eye(adj.shape[0])).tocoo()
+
 
 def normalized_adjacency(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt)).tocoo()
+
 
 def random_walk_laplacian(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv = np.power(row_sum, -1.0).flatten()
-   d_mat = sp.diags(d_inv)
-   return (sp.eye(adj.shape[0]) - d_mat.dot(adj)).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv = np.power(row_sum, -1.0).flatten()
+    d_mat = sp.diags(d_inv)
+    return (sp.eye(adj.shape[0]) - d_mat.dot(adj)).tocoo()
 
 
 def aug_random_walk(adj):
-   adj = adj + sp.eye(adj.shape[0])
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv = np.power(row_sum, -1.0).flatten()
-   d_mat = sp.diags(d_inv)
-   return (d_mat.dot(adj)).tocoo()
+    adj = adj + sp.eye(adj.shape[0])
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv = np.power(row_sum, -1.0).flatten()
+    d_mat = sp.diags(d_inv)
+    return (d_mat.dot(adj)).tocoo()
+
 
 def random_walk(adj):
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv = np.power(row_sum, -1.0).flatten()
-   d_mat = sp.diags(d_inv)
-   return d_mat.dot(adj).tocoo()
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv = np.power(row_sum, -1.0).flatten()
+    d_mat = sp.diags(d_inv)
+    return d_mat.dot(adj).tocoo()
+
 
 def no_norm(adj):
-   adj = sp.coo_matrix(adj)
-   return adj
+    adj = sp.coo_matrix(adj)
+    return adj
+
 
 def fetch_normalization(type):
-   switcher = {
-	   'NormLap': normalized_laplacian,  # A' = I - D^-1/2 * A * D^-1/2
-	   'Lap': laplacian,  # A' = D - A
-	   'RWalkLap': random_walk_laplacian,  # A' = I - D^-1 * A
-	   'FirstOrderGCN': gcn,   # A' = I + D^-1/2 * A * D^-1/2
-	   'AugNormAdj': aug_normalized_adjacency,  # A' = (D + I)^-1/2 * ( A + I ) * (D + I)^-1/2
-	   'BingGeNormAdj': bingge_norm_adjacency, # A' = I + (D + I)^-1/2 * (A + I) * (D + I)^-1/2
-	   'NormAdj': normalized_adjacency,  # D^-1/2 * A * D^-1/2
-	   'RWalk': random_walk,  # A' = D^-1*A
-	   'AugRWalk': aug_random_walk,  # A' = (D + I)^-1*(A + I)
-	   'NoNorm': no_norm, # A' = A
-   }
-   func = switcher.get(type, lambda: "Invalid normalization technique.")
-   return func
+    switcher = {
+        'NormLap': normalized_laplacian,  # A' = I - D^-1/2 * A * D^-1/2
+        'Lap': laplacian,  # A' = D - A
+        'RWalkLap': random_walk_laplacian,  # A' = I - D^-1 * A
+        'FirstOrderGCN': gcn,  # A' = I + D^-1/2 * A * D^-1/2
+        'AugNormAdj': aug_normalized_adjacency,  # A' = (D + I)^-1/2 * ( A + I ) * (D + I)^-1/2
+        'BingGeNormAdj': bingge_norm_adjacency,  # A' = I + (D + I)^-1/2 * (A + I) * (D + I)^-1/2
+        'NormAdj': normalized_adjacency,  # D^-1/2 * A * D^-1/2
+        'RWalk': random_walk,  # A' = D^-1*A
+        'AugRWalk': aug_random_walk,  # A' = (D + I)^-1*(A + I)
+        'NoNorm': no_norm,  # A' = A
+    }
+    func = switcher.get(type, lambda: "Invalid normalization technique.")
+    return func
+
 
 def row_normalize(mx):
-	"""Row-normalize sparse matrix"""
-	rowsum = np.array(mx.sum(1))
-	r_inv = np.power(rowsum, -1).flatten()
-	r_inv[np.isinf(r_inv)] = 0.
-	r_mat_inv = sp.diags(r_inv)
-	mx = r_mat_inv.dot(mx)
-	return mx
+    """Row-normalize sparse matrix"""
+    rowsum = np.array(mx.sum(1))
+    r_inv = np.power(rowsum, -1).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = sp.diags(r_inv)
+    mx = r_mat_inv.dot(mx)
+    return mx
+
+# if __name__ == '__main__':
+#     # extract_kcore_Coreness("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/", 1)
+#     #extract_kcore("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/", 1)
+#     core = load_graph("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/test.txt")
+#     A = [1,2,3]
+#     A = np.array(A)
+#
+#     f = collapsedCorenessLabelGeneration(core, A);
+#     core.number_of_nodes()
+#     print f
