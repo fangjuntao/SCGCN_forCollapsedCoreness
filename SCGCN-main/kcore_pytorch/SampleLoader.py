@@ -84,6 +84,10 @@ def collapsedCorenessLabelGeneration(core, idx):
 
     return np.array(label)
 
+def  calSingerLabelForCoreness(removeNodes,core):                 # 为了修改collapsedCorenessLabelGeneration为多线程
+
+
+
 
 class SampleDataset(Dataset):
     def __init__(self, n_classes, n_node, non_dominated, X_norm,
@@ -477,10 +481,8 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 def calFollower(arag):
     core_tmp, v=arag
-    core = deepcopy(core_tmp)
-
+    core = deepcopy(core_tmp)  #复制，防止修改传入的core
     coreness1 = nx.core_number(core);
-
 
     core.remove_node(v)  # 删除节点v 以及边
 
