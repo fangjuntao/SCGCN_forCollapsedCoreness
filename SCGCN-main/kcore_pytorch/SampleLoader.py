@@ -18,7 +18,7 @@ from multiprocessing import Pool
 
 import os
 import copy
-
+THREAD_NUM  = 10   # 定义线程数量
 Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
@@ -52,14 +52,11 @@ def collapsedCorenessLabelGeneration(core, idx):
     node_num = coreNew.number_of_nodes()
     coreness1 = nx.core_number(coreNew)
 
-    label = []
 
     removeNodes = idx.tolist()
     coreNew.remove_nodes_from(removeNodes)  # 删除节点v 以及边
 
     coreness2 = nx.core_number(coreNew)
-
-
 
     for i in removeNodes:
         del coreness1[i]
@@ -68,24 +65,23 @@ def collapsedCorenessLabelGeneration(core, idx):
     coreness2 = np.array(list(coreness2.values()))
     corenessLoss = np.sum(coreness1-coreness2)
 
-
-
-
-    # pool=Pool(10)
-    # X_norm=list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)] ))
-    f = 0
-    for i in range(0, node_num):
-        core_tmp = copy.deepcopy(coreNew)
-        if i in removeNodes:
-            f = 0
-        else:
-            f = calCorenessLoss(core_tmp, i)
-        label.append(f + corenessLoss)
+    pool=Pool(THREAD_NUM)
+    label=list(pool.imap(calSingerLabelForCoreness, [(coreNew,corenessLoss,removeNodes,i) for i in range(node_num)] ))
 
     return np.array(label)
 
-def  calSingerLabelForCoreness(removeNodes,core):                 # 为了修改collapsedCorenessLabelGeneration为多线程
+def  calSingerLabelForCoreness(coreNew,corenessLoss,removeNodes,i):                 # 为了修改collapsedCorenessLabelGeneration为多线程
 
+    label = 0
+
+    core_tmp = copy.deepcopy(coreNew)
+    if i in removeNodes:
+        label = corenessLoss
+    else:
+        label = calCorenessLoss(core_tmp, i)
+        label = label + corenessLoss
+
+    return label
 
 
 
@@ -378,7 +374,7 @@ def data_preprocessingCoreness(gname, k, load_traindata=True):
 
     nodesNum = core.number_of_nodes()
 
-    pool=Pool(10)
+    pool=Pool(THREAD_NUM)
     X_norm=list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)] ))
     # for i in range(0, nodesNum):
     #     core_tmp = deepcopy(core)
