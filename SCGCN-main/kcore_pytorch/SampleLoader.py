@@ -70,8 +70,8 @@ def collapsedCorenessLabelGeneration(core, idx):
 
     return np.array(label)
 
-def  calSingerLabelForCoreness(coreNew,corenessLoss,removeNodes,i):                 # 为了修改collapsedCorenessLabelGeneration为多线程
-
+def  calSingerLabelForCoreness(args):                 # 为了修改collapsedCorenessLabelGeneration为多线程
+    coreNew, corenessLoss, removeNodes, i  = args
     label = 0
 
     core_tmp = copy.deepcopy(coreNew)
@@ -360,7 +360,7 @@ def data_preprocessing(gname, k, load_traindata=True):
     return (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
 
 
-def data_preprocessingCoreness(gname, k, load_traindata=True):
+def data_preprocessingCoreness(gname, k, load_traindata=True,need_Xnorm):
     core = load_tmp_core(gname)  # load_tmp_core2(gname)有bug
 
     A = nx.adjacency_matrix(core).todense()
@@ -374,8 +374,12 @@ def data_preprocessingCoreness(gname, k, load_traindata=True):
 
     nodesNum = core.number_of_nodes()
 
-    pool=Pool(THREAD_NUM)
-    X_norm=list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)] ))
+    if need_Xnorm:
+        pool = Pool(THREAD_NUM)
+        X_norm = list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)]))
+    else:
+        pass
+
     # for i in range(0, nodesNum):
     #     core_tmp = deepcopy(core)
     #     followerNums = calFollower(core_tmp, i)
