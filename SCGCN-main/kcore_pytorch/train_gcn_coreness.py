@@ -14,6 +14,8 @@ from ctypes import *
 import os
 
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
@@ -41,6 +43,8 @@ def validate(args, model, adj, val_data):
     criterion = torch.nn.MSELoss()
     outputs = model(data, adj)
     outputs = outputs.squeeze()
+    outputs = torch.tensor(outputs, dtype=torch.float32)
+    labels =torch.tensor(labels, dtype=torch.float32)
     val_loss = criterion(outputs, labels)
     return val_loss
 
@@ -53,6 +57,7 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
     optimizer: defined optimizer
     ini_step: pretrained steps of the model
     '''
+    print("进入train")
     if args.cuda:
         adj = adj.cuda()
         model.cuda()
@@ -61,9 +66,19 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
     if args.earlystopping > 0:
         early_stopping = EarlyStopping(patience=args.earlystopping, verbose=False)
 
-    for step in range(args.steps):
+    # for step in range(args.steps):
+    step = 0
+    for i, data_all in enumerate(dataloader):
+        if step == args.steps:
+            break
+        else:
+            pass
+
+        step = step+1
         model.train()
-        data, weights, labels = next(iter(dataloader))
+        # print("进入")
+        # data, weights, labels = next(iter(dataloader))
+        data, weights, labels = data_all
         data, weights, labels = data.float(), weights.float(), labels.float()
         if args.cuda:
             data, weights, labels = data.cuda(), weights.cuda(), labels.cuda()
@@ -138,17 +153,21 @@ def gen_kcore_union_coreness(args, model, adj):
     b = args.b
     k = args.k
     # b = 25
+    #
+    # X_norm, n_classes, core, _ = build_testsetCoreness(input_folder, k)
 
-    X_norm, n_classes, core, _ = build_testsetCoreness(input_folder, k)
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    (X_norm, _, n_classes, core, G) = data_preprocessingCoreness(gname, k, True, False)
     orig_core = deepcopy(core)
     mask = np.zeros(shape=(n_classes,), dtype=int)
     n_node = core.number_of_nodes()
     extra_feats, n_feats = generate_features(core=core, n_node=n_node)
     res = []
     res_node = []
-    seed = np.argmax(X_norm)
-    if verbose:
-        print("seed: %d\t%d" % (seed, X_norm[seed]))
+    # seed = np.argmax(X_norm)
+    seed = 107
+    # if verbose:
+    #     print("seed: %d\t%d" % (seed, X_norm[seed]))
 
     mask[seed] = -10000000.0
 
@@ -195,9 +214,9 @@ def gen_kcore_union_coreness(args, model, adj):
         mask[oidx] = -1000000000.0
         # core = graph
 
-        # if verbose:
-        #     print("cnt: %d with: %d without: %d graph id: %d all removed: %d" %
-        #           (len(res), oidx, np.argmax(pred), oidx, core.number_of_nodes() - orig_core.number_of_nodes()))
+        if verbose:
+            print("cnt: %d with: %d " %
+                  (len(res), oidx))
         cnt += 1
         if core.number_of_nodes() == 0:
             break
@@ -519,7 +538,9 @@ def main(args):
     # define the training dataset and dataloader
     n_node = graph.number_of_nodes()
     extra_feats, n_feats = generate_features(core=graph, n_node=n_node)
-    dataset = SampleDatasetCoreness(n_classes=n_classes, n_node=graph.number_of_nodes(),
+
+
+    dataset = SampleDatasetCoreness(input_filename=args.input_train_filename, label_name=args.train_label_filename,n_classes=n_classes, n_node=graph.number_of_nodes(),
                                     X_norm=train_norm,
                                     extra_feats=extra_feats, ef=ef,
                                     G=graph, set_size=set_size,
@@ -527,7 +548,7 @@ def main(args):
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=False, sampler=None)
     # define the validation dataset
-    val_dataset = SampleDatasetCoreness(n_classes=n_classes, n_node=graph.number_of_nodes(),
+    val_dataset = SampleDatasetCoreness(input_filename=args.input_val_filename, label_name=args.val_label_filename,n_classes=n_classes, n_node=graph.number_of_nodes(),
                                 X_norm=train_norm,
                                 extra_feats=extra_feats, ef=ef,
                                 G=graph, set_size=set_size,
@@ -589,19 +610,19 @@ if __name__ == "__main__":
                         help="first layer of GCN: number of hidden units")  # options [64, 128, 256]
     parser.add_argument("--n_hid2", default=64, type=int,
                         help="second layer of GCN: number of hidden units")  # options [64, 128, 256]
-    parser.add_argument("--n_expert", default=16, type=int,
+    parser.add_argument("--n_expert", default=64, type=int,
                         help="attention layer: number of experts")  # options [16, 32, 64, 128]
     parser.add_argument("--att_hid", default=64, type=int,
                         help="attention layer: hidden units")  # options [64, 128, 256]
-    parser.add_argument("--model_dir", type=str, default="./GCN_model1.pt")
+    parser.add_argument("--model_dir", type=str, default="./GCN_model20221025_temp3.pt")
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='Dropout rate (1 - keep probability).')
     parser.add_argument("--normalization", default="AugNormAdj",
                         help="The normalization on the adj matrix.")
 
     # Training settings
-    parser.add_argument("--batch_size", default=32, type=int)  # options: [32, 64, 128]
-    parser.add_argument("--steps", default=1000, type=int)  # options:  (1000, 2000, ... 40000)
+    parser.add_argument("--batch_size", default=50000, type=int)  # options: [32, 64, 128]
+    parser.add_argument("--steps", default=1100, type=int)  # options:  (1000, 2000, ... 40000)
     parser.add_argument("--learning_rate", default=0.001, type=float)  # options [1e-3, 1e-4]
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='Disables CUDA training.')
@@ -618,7 +639,14 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", default=True, type=bool)
     # parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
     parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-    parser.add_argument("--b", default=10, type=int, help="the result set size")
+    parser.add_argument("--b", default=1000, type=int, help="the result set size")
+    parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/train_input.txt", help="the path of the input data file ")
+    parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/train-label.txt",help="the path of the label file of the data sample")
+    parser.add_argument("--input_val_filename",
+                        default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/val_input.txt",
+                        help="the path of the input data file ")
+    parser.add_argument("--val_label_filename", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/val_label.txt",
+                        help="the path of the label file of the data sample")
 
     # unused parameters
     '''

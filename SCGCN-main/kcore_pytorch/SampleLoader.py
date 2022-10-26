@@ -15,10 +15,12 @@ from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 from ctypes import *
 from multiprocessing import Pool
+import linecache
 
 import os
 import copy
-THREAD_NUM  = 10   # 定义线程数量
+
+THREAD_NUM = 5  # 定义线程数量
 Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
@@ -52,7 +54,6 @@ def collapsedCorenessLabelGeneration(core, idx):
     node_num = coreNew.number_of_nodes()
     coreness1 = nx.core_number(coreNew)
 
-
     removeNodes = idx.tolist()
     coreNew.remove_nodes_from(removeNodes)  # 删除节点v 以及边
 
@@ -63,15 +64,20 @@ def collapsedCorenessLabelGeneration(core, idx):
 
     coreness1 = np.array(list(coreness1.values()))
     coreness2 = np.array(list(coreness2.values()))
-    corenessLoss = np.sum(coreness1-coreness2)
+    corenessLoss = np.sum(coreness1 - coreness2)
+    label = []
+    for i in range(node_num):
+        args = (coreNew, corenessLoss, removeNodes, i)
+        label.append(calSingerLabelForCoreness(args))
 
-    pool=Pool(THREAD_NUM)
-    label=list(pool.imap(calSingerLabelForCoreness, [(coreNew,corenessLoss,removeNodes,i) for i in range(node_num)] ))
+    # pool=Pool(5)
+    # label=list(pool.imap(calSingerLabelForCoreness, [(coreNew,corenessLoss,removeNodes,i) for i in range(node_num)] ))
 
     return np.array(label)
 
-def  calSingerLabelForCoreness(args):                 # 为了修改collapsedCorenessLabelGeneration为多线程
-    coreNew, corenessLoss, removeNodes, i  = args
+
+def calSingerLabelForCoreness(args):  # 为了修改collapsedCorenessLabelGeneration为多线程
+    coreNew, corenessLoss, removeNodes, i = args
     label = 0
 
     core_tmp = copy.deepcopy(coreNew)
@@ -82,7 +88,6 @@ def  calSingerLabelForCoreness(args):                 # 为了修改collapsedCor
         label = label + corenessLoss
 
     return label
-
 
 
 class SampleDataset(Dataset):
@@ -132,9 +137,10 @@ class SampleDataset(Dataset):
 
 
 class SampleDatasetCoreness(Dataset):
-    def __init__(self, n_classes, n_node, X_norm,
+    def __init__(self, input_filename, label_name, n_classes, n_node, X_norm,
                  extra_feats, ef, G, set_size, k, batch_size):
         '''
+        input_filename : the path of the input file
 		n_clases: number of predict classes
 		n_node: number of nodes of graph
 		X_norm: to compute sample probability
@@ -143,7 +149,8 @@ class SampleDatasetCoreness(Dataset):
 		G: core (networkX Graph)
 		set_size: b
 		'''
-
+        self.input_filename = input_filename
+        self.label_filename = label_name
         self.n_classes = n_classes
         self.n_node = n_node
         # self.non_dominated = np.array(non_dominated)
@@ -157,8 +164,11 @@ class SampleDatasetCoreness(Dataset):
         self.p = X_norm / float(np.sum(X_norm))
 
     def __getitem__(self, index):
-        s_size = random.randint(3, self.set_size - 1)
+        s_size = random.randint(2, self.set_size - 1)
         idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
+        test_str = " ".join([str(x) for x in idx])
+        print str(s_size)
+        print test_str
         x = np.zeros((self.n_node, 1), dtype=np.float32)
         # g_idx = self.non_dominated[idx]
         # x[g_idx] = 1  # remap to the graph id
@@ -166,16 +176,30 @@ class SampleDatasetCoreness(Dataset):
         if self.ef > 0:
             x = np.hstack((x, self.extra_feats))
             x = torch.FloatTensor(x)
-        y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
-        weight = y
-        w = np.min(y).reshape((1,))
-        y = y - w + 1
-        y = y.astype(np.float32) / np.sum(y)
-        # print(x.shape, y.shape)
+        # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
+        y = 1
+        weight = 1
+        # s_size = linecache.getline(self.input_filename, 2 * index)
+        # g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
+        # idx = [int(line.rstrip()) for line in g_idex_line.split()]
+        # x = np.zeros((self.n_node, 1), dtype=np.float32)
+        # x[idx] = 1
+        # y_line = linecache.getline(self.label_filename, (2 * (index+1))-1)
+        # y = [int(line.rstrip()) for line in y_line.split()]
+        # y = np.array(y)
+        # # print("y的值：")
+        # # print  y
+        # weight = y
+        # w = np.min(y).reshape((1,))
+        # y = y - w + 1
+        # y = y.astype(np.float32) / np.sum(y)
+        # # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
     def __len__(self):
-        return self.batch_size
+        count = len(open(self.label_filename, 'rU').readlines())
+        count = count/2
+        return count
 
 
 def load_graph(fname):
@@ -233,8 +257,8 @@ def load_graph_forCoreness(fname):
     G = nx.Graph()
     G.add_edges_from(Edges)
     G.remove_edges_from(G.selfloop_edges())
-    print('number of nodes in graph:', G.number_of_nodes())
-    print('number of edges in graph:', G.number_of_edges())
+    # print('number of nodes in graph:', G.number_of_nodes())
+    # print('number of edges in graph:', G.number_of_edges())
     file.close()
     # nx.draw(G, node_size=30, with_label=True)
     # plt.show()
@@ -300,8 +324,8 @@ def extract_kcore(input_folder, k):
     graph = load_graph(fname)  # 读data，存为图（nx.Graph()）
     graph.remove_edges_from(graph.selfloop_edges())  # 去除自环（实际上 load_graph(fname)已经有这步操作了）
     core = nx.k_core(graph, k)  # coreness问题让k=1即可
-    print("# nodes in %d core: %d" % (k, core.number_of_nodes()))
-    print("# edges in %d core: %d" % (k, core.number_of_edges()))
+    # print("# nodes in %d core: %d" % (k, core.number_of_nodes()))
+    # print("# edges in %d core: %d" % (k, core.number_of_edges()))
     gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
     node_dict = {}
     node_cnt = 0
@@ -326,10 +350,10 @@ def data_preprocessing(gname, k, load_traindata=True):
     A = np.array(A)
     B = A.tolist()
     Y_train = A.astype(np.float32)
-    deg_norm = np.sum(Y_train, axis=0) #求出每列元素的和
+    deg_norm = np.sum(Y_train, axis=0)  # 求出每列元素的和
     G = kcore.Graph()
-    print("gname:")
-    print gname
+    # print("gname:")
+    # print gname
     G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
     X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！需要更改
     # Coreness.getCoreness(4039, 88234);
@@ -355,12 +379,12 @@ def data_preprocessing(gname, k, load_traindata=True):
         return nondomin_dict
 
     nondomin_dict = to_nondomin_dict(non_dominated)
-    print non_dominated,deg_norm[non_dominated],deg_norm
+    # print non_dominated,deg_norm[non_dominated],deg_norm
     deg_norm = np.array(deg_norm[non_dominated])
     return (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
 
 
-def data_preprocessingCoreness(gname, k, load_traindata=True,need_Xnorm):
+def data_preprocessingCoreness(gname, k, load_traindata=True, need_Xnorm=True):
     core = load_tmp_core(gname)  # load_tmp_core2(gname)有bug
 
     A = nx.adjacency_matrix(core).todense()
@@ -371,14 +395,13 @@ def data_preprocessingCoreness(gname, k, load_traindata=True,need_Xnorm):
     G = kcore.Graph()
     G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
 
-
     nodesNum = core.number_of_nodes()
 
     if need_Xnorm:
         pool = Pool(THREAD_NUM)
         X_norm = list(pool.imap(calFollower, [(core, i) for i in range(nodesNum)]))
     else:
-        pass
+        X_norm = []
 
     # for i in range(0, nodesNum):
     #     core_tmp = deepcopy(core)
@@ -398,7 +421,8 @@ def build_dataset(input_folder, k, load_traindata=True):
         extract_kcore(input_folder, k)
     (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, load_traindata)
 
-    return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
+    # return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
+    return (X_norm, n_classes, non_dominated, nondomin_dict, core, G)
 
 
 def build_datasetCoreness(input_folder, k, load_traindata=True):
@@ -407,8 +431,7 @@ def build_datasetCoreness(input_folder, k, load_traindata=True):
     if not core_exists:  # if not have the core file, compute it on the fly
         extract_kcore(input_folder, k)
 
-
-    (X_norm, deg_norm, n_classes, core, G) = data_preprocessingCoreness(gname, k, load_traindata)
+    (X_norm, deg_norm, n_classes, core, G) = data_preprocessingCoreness(gname, k, load_traindata, False)
 
     return deg_norm, n_classes, core, G
 
@@ -421,7 +444,7 @@ def build_testset(input_folder, k):
 
 def build_testsetCoreness(input_folder, k):
     gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
-    (X_norm, _, n_classes, core, G) = data_preprocessingCoreness(gname, k, True)
+    (X_norm, _, n_classes, core, G) = data_preprocessingCoreness(gname, k, True, True)
     return (X_norm, n_classes, core, G)
 
 
@@ -480,8 +503,8 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 #
 
 def calFollower(arag):
-    core_tmp, v=arag
-    core = deepcopy(core_tmp)  #复制，防止修改传入的core
+    core_tmp, v = arag
+    core = deepcopy(core_tmp)  # 复制，防止修改传入的core
     coreness1 = nx.core_number(core);
 
     core.remove_node(v)  # 删除节点v 以及边
@@ -492,16 +515,14 @@ def calFollower(arag):
 
     coreness1 = np.array(list(coreness1.values()))
     coreness2 = np.array(list(coreness2.values()))
-    corenessLoss = np.sum(coreness1-coreness2)
+    corenessLoss = np.sum(coreness1 - coreness2)
 
     return corenessLoss
-
 
 
 def calCorenessLoss(core, v):  # 移除单个节点时，它带来的coreness loss与计算其follower的数量相同
 
     coreness1 = nx.core_number(core);
-
 
     core.remove_node(v)  # 删除节点v 以及边
 
@@ -520,7 +541,7 @@ def calCorenessLoss(core, v):  # 移除单个节点时，它带来的coreness lo
 
     coreness1 = np.array(list(coreness1.values()))
     coreness2 = np.array(list(coreness2.values()))
-    corenessLoss = np.sum(coreness1-coreness2)
+    corenessLoss = np.sum(coreness1 - coreness2)
 
     return corenessLoss
 
@@ -635,13 +656,8 @@ def row_normalize(mx):
     mx = r_mat_inv.dot(mx)
     return mx
 
-# if __name__ == '__main__':
-#     # extract_kcore_Coreness("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/", 1)
-#     #extract_kcore("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/", 1)
-#     core = load_graph("/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/test.txt")
-#     A = [1,2,3]
-#     A = np.array(A)
-#
-#     f = collapsedCorenessLabelGeneration(core, A);
-#     core.number_of_nodes()
-#     print f
+
+
+
+
+

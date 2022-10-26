@@ -457,7 +457,8 @@ def main(args):
 	ini_step = 0
 	# if model exists, reload the model 
 	model_exists = os.path.isfile(model_dir)
-	if model_exists:
+	# if model_exists:
+	if False:
 		checkpoint = torch.load(model_dir)
 		model.load_state_dict(checkpoint['model_state_dict'])
 		optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -481,23 +482,23 @@ def main(args):
 if __name__ == "__main__":
 	parser = ArgumentParser("gcn", formatter_class=ArgumentDefaultsHelpFormatter, conflict_handler="resolve")
 	# Model settings
-	parser.add_argument("--n_hid1", default=128, type=int, help ="first layer of GCN: number of hidden units") # options [64, 128, 256]
-	parser.add_argument("--n_hid2", default=128, type=int, help ="second layer of GCN: number of hidden units") # options [64, 128, 256]
-	parser.add_argument("--n_expert", default=128, type=int, help ="attention layer: number of experts") # options [16, 32, 64, 128]
-	parser.add_argument("--att_hid", default=128, type=int, help ="attention layer: hidden units") # options [64, 128, 256]
-	parser.add_argument("--model_dir", type=str, default="./GCN_model1.pt")
+	parser.add_argument("--n_hid1", default=64, type=int, help ="first layer of GCN: number of hidden units") # options [64, 128, 256]
+	parser.add_argument("--n_hid2", default=64, type=int, help ="second layer of GCN: number of hidden units") # options [64, 128, 256]
+	parser.add_argument("--n_expert", default=64, type=int, help ="attention layer: number of experts") # options [16, 32, 64, 128]
+	parser.add_argument("--att_hid", default=32, type=int, help ="attention layer: hidden units") # options [64, 128, 256]
+	parser.add_argument("--model_dir", type=str, default="./GCN_model_new.pt")
 	parser.add_argument('--dropout', type=float, default=0.5,
 						help='Dropout rate (1 - keep probability).')
 	parser.add_argument("--normalization", default="AugNormAdj", 
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=10, type=int) # options: [32, 64, 128]
-	parser.add_argument("--steps", default=2000, type=int)  # options:  (1000, 2000, ... 40000)
+	parser.add_argument("--batch_size", default=32, type=int) # options: [32, 64, 128]
+	parser.add_argument("--steps", default=500, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
 						help='Disables CUDA training.')
-	parser.add_argument('--weight_decay', type=float, default=5e-4,
+	parser.add_argument('--weight_decay', type=float, default=10e-3,
 						help='Weight decay (L2 loss on parameters).')
 	parser.add_argument("--earlystopping", type=int, default=0, 
 		help="The patience of earlystopping. Do not adopt the earlystopping when it equals 0.")
@@ -505,11 +506,11 @@ if __name__ == "__main__":
 	#Others
 	parser.add_argument("--extra_feats", default=0, type=int, 
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness", help="Input data.txt folder")
+	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/fb", help="Input data.txt folder")
 	parser.add_argument("--verbose", default=True, type=bool)
 	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
-	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-	parser.add_argument("--b", default=5, type=int, help = "the result set size")
+	parser.add_argument("--k", default=30, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
+	parser.add_argument("--b", default=20, type=int, help = "the result set size")
 
 	# unused parameters
 	'''
