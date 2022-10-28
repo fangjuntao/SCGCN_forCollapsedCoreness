@@ -1,6 +1,7 @@
 #! usr/bin/python
 # encoding:utf-8
 import time
+
 from argparse import ArgumentParser, FileType, ArgumentDefaultsHelpFormatter
 
 import torch.nn.functional as F
@@ -12,6 +13,7 @@ from SampleLoader import *
 from ctypes import *
 
 import os
+import sys
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -57,7 +59,7 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
     optimizer: defined optimizer
     ini_step: pretrained steps of the model
     '''
-    print("进入train")
+    # print("进入train")
     if args.cuda:
         adj = adj.cuda()
         model.cuda()
@@ -71,7 +73,9 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
     t_begin = time. clock ()
     for i, data_all in enumerate(dataloader):
         t_end =time. clock ()
+        print("-1")
         print ( '--------Running time: %s Seconds' %(t_end-t_begin))
+        sys.exit(1)
 
         if step == args.steps:
             break
@@ -513,7 +517,6 @@ def gen_kcore_sep(args, model, adj):
 
 def main(args):
 
-    print("Brightkite——b_58228")
     n_hid1 = args.n_hid1
     n_hid2 = args.n_hid2
     n_expert = args.n_expert
@@ -535,7 +538,7 @@ def main(args):
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    train_norm, n_classes, graph, G = build_datasetCoreness(input_folder, k)
+    train_norm, n_classes, graph= build_datasetCoreness(input_folder, k)
     if verbose:
         print("training data.txt shape: ")
         print(train_norm.shape)
@@ -626,8 +629,8 @@ if __name__ == "__main__":
                         help="The normalization on the adj matrix.")
 
     # Training settings
-    parser.add_argument("--batch_size", default=500000, type=int)  # options: [32, 64, 128]
-    parser.add_argument("--steps", default=2000, type=int)  # options:  (1000, 2000, ... 40000)
+    parser.add_argument("--batch_size", default=200000, type=int)  # options: [32, 64, 128]
+    parser.add_argument("--steps", default=20000000, type=int)  # options:  (1000, 2000, ... 40000)
     parser.add_argument("--learning_rate", default=0.001, type=float)  # options [1e-3, 1e-4]
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='Disables CUDA training.')
@@ -639,12 +642,12 @@ if __name__ == "__main__":
     # Others
     parser.add_argument("--extra_feats", default=0, type=int,
                         help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Brightkite/",
+    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Socfb-Syracuse56/",
                         help="Input data.txt folder")
-    parser.add_argument("--verbose", default=True, type=bool)
+    parser.add_argument("--verbose", default=False, type=bool)
     # parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
     parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-    parser.add_argument("--b", default=58228, type=int, help="the result set size")
+    parser.add_argument("--b", default=13653, type=int, help="the result set size")
     parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/train_input.txt", help="the path of the input data file ")
     parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/train_label.txt",help="the path of the label file of the data sample")
     parser.add_argument("--input_val_filename",

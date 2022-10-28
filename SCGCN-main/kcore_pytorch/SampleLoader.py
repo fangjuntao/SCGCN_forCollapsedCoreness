@@ -234,8 +234,8 @@ def load_graph(fname):
     G = nx.Graph()
     G.add_edges_from(Edges)
     G.remove_edges_from(G.selfloop_edges())
-    print('number of nodes in graph:', G.number_of_nodes())
-    print('number of edges in graph:', G.number_of_edges())
+    # print('number of nodes in graph:', G.number_of_nodes())
+    # print('number of edges in graph:', G.number_of_edges())
     file.close()
     return G
 
@@ -402,8 +402,8 @@ def data_preprocessingCoreness(gname, k, load_traindata=True, need_Xnorm=True):
     B = A.tolist()
     Y_train = A.astype(np.float32)
     deg_norm = np.sum(Y_train, axis=0)
-    G = kcore.Graph()
-    G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
+    # G = kcore.Graph()
+    # G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
 
     nodesNum = core.number_of_nodes()
 
@@ -421,7 +421,7 @@ def data_preprocessingCoreness(gname, k, load_traindata=True, need_Xnorm=True):
     X_norm = np.array(X_norm)
 
     n_classes = nodesNum
-    return X_norm, deg_norm, n_classes, core, G
+    return X_norm, deg_norm, n_classes, core
 
 
 def build_dataset(input_folder, k, load_traindata=True):
@@ -441,9 +441,9 @@ def build_datasetCoreness(input_folder, k, load_traindata=True):
     if not core_exists:  # if not have the core file, compute it on the fly
         extract_kcore(input_folder, k)
 
-    (X_norm, deg_norm, n_classes, core, G) = data_preprocessingCoreness(gname, k, load_traindata, False)
+    (X_norm, deg_norm, n_classes, core) = data_preprocessingCoreness(gname, k, load_traindata, False)
 
-    return deg_norm, n_classes, core, G
+    return deg_norm, n_classes, core
 
 
 def build_testset(input_folder, k):
