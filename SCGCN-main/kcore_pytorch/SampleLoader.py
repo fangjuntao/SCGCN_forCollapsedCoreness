@@ -6,6 +6,7 @@ import os
 import torch
 import random
 import kcore
+import time
 import itertools
 from copy import deepcopy
 from sets import Set
@@ -21,7 +22,7 @@ import os
 import copy
 
 THREAD_NUM = 5  # 定义线程数量
-Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
+# Coreness = cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
 def swap(t1, t2):
@@ -129,6 +130,7 @@ class SampleDataset(Dataset):
         w = np.min(y).reshape((1,))  # y中的最小值
         y = y - w + 1  # 区间变为从1开始
         y = y.astype(np.float32) / np.sum(y)  # 归一化的最后一步
+
         # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
@@ -164,6 +166,7 @@ class SampleDatasetCoreness(Dataset):
         self.p = X_norm / float(np.sum(X_norm))
 
     def __getitem__(self, index):
+
         s_size = random.randint(2, self.set_size - 1)
         idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
         test_str = " ".join([str(x) for x in idx])
@@ -173,12 +176,13 @@ class SampleDatasetCoreness(Dataset):
         # g_idx = self.non_dominated[idx]
         # x[g_idx] = 1  # remap to the graph id
         x[idx] = 1
-        if self.ef > 0:
-            x = np.hstack((x, self.extra_feats))
-            x = torch.FloatTensor(x)
+        # if self.ef > 0:
+        #     x = np.hstack((x, self.extra_feats))
+        #     x = torch.FloatTensor(x)
         # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
         y = 1
         weight = 1
+        #-----------------------------------------------------------------
         # s_size = linecache.getline(self.input_filename, 2 * index)
         # g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
         # idx = [int(line.rstrip()) for line in g_idex_line.split()]
@@ -193,16 +197,22 @@ class SampleDatasetCoreness(Dataset):
         # w = np.min(y).reshape((1,))
         # y = y - w + 1
         # y = y.astype(np.float32) / np.sum(y)
+        # y = y.astype(np.float32)
         # # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
     def __len__(self):
         count = len(open(self.label_filename, 'rU').readlines())
-        count = count/2
+        count = count / 2
+        #----------------------------------------------------
+        # count = 10000000
+
         return count
 
 
 def load_graph(fname):
+    # #添加功能去除重边
+    # dict_temp ={}
     file = open(fname)
     Edges = []
     node_dict = {}

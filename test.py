@@ -2,7 +2,7 @@
 
 import networkx
 import matplotlib.pyplot as plt
-df1 = open("test.txt","r")
+df1 = open("test_edge.txt", "r")
 ncols1 = len(next(df1).split("\n"))
 g = networkx.Graph()
 edge_lable=[]
