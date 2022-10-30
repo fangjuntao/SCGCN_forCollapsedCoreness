@@ -16,7 +16,7 @@ import os
 import sys
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
@@ -234,7 +234,7 @@ def gen_kcore_union_coreness(args, model, adj):
             break
 
     t_end  = time.time()
-    print ("the total time of the predicting:{.4f}".format(t_end-t_begin))
+    print ("the total time of the predicting:{.4f}s".format(t_end-t_begin))
 
     if verbose:
 

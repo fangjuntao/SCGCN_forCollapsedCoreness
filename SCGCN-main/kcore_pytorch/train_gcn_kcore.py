@@ -19,7 +19,7 @@ from SampleLoader import *
 from ctypes import *
 
 import os
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
@@ -77,6 +77,16 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
 			data, weights, labels = data.cuda(), weights.cuda(), labels.cuda()
 
 		optimizer.zero_grad()
+		try:
+			outputs = model(data, adj)
+		except RuntimeError as exception:
+			if "out of memory" in str(exception):
+				print("WARNING: out of memory")
+				if hasattr(torch.cuda, 'empty_cache'):
+					torch.cuda.empty_cache()
+			else:
+				raise exception
+
 		outputs = model(data, adj)
 		outputs = outputs.squeeze()
 		#crit = torch.nn.BCELoss(weight = weights)
@@ -86,8 +96,9 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
 
 		loss.backward()
 		optimizer.step()
-		
-		val_loss = validate(args, model, adj, val_data)
+		with torch.no_grad():
+			val_loss = validate(args, model, adj, val_data)
+
 		scheduler.step(val_loss) # learn rate decay
 		if args.earlystopping > 0:
 			early_stopping(val_loss, model)
@@ -114,9 +125,12 @@ def predict_one(args, model, data, adj):
 	if args.cuda:
 		adj = adj.cuda()
 		data = data.cuda()
-	output = model(data, adj)
-	pred = output.cpu().data.numpy()
-	pred = pred.squeeze()
+	with torch.no_grad():
+
+		output = model(data, adj)
+		pred = output.cpu().data.numpy()
+		pred = pred.squeeze()
+
 	return pred
 
 def predict_all(args, model, data, adj):
@@ -493,7 +507,7 @@ if __name__ == "__main__":
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=32, type=int) # options: [32, 64, 128]
+	parser.add_argument("--batch_size", default=16, type=int) # options: [32, 64, 128]
 	parser.add_argument("--steps", default=500, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
@@ -506,7 +520,7 @@ if __name__ == "__main__":
 	#Others
 	parser.add_argument("--extra_feats", default=0, type=int, 
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/test", help="Input data.txt.txt folder")
+	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Arxiv", help="Input data.txt.txt folder")
 	parser.add_argument("--verbose", default=True, type=bool)
 	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
 	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
