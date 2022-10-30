@@ -121,7 +121,7 @@ class SampleDataset(Dataset):
         idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
         x = np.zeros((self.n_node, 1), dtype=np.float32)
         g_idx = self.non_dominated[idx]
-        x[g_idx] = 1  # remap to the graph id
+        x[g_idx] = 1  # remap to the graph id，即将去除非关键用户中采样的点，映射回去除前的编号
         if self.ef > 0:
             x = np.hstack((x, self.extra_feats))
             x = torch.FloatTensor(x)
@@ -167,44 +167,44 @@ class SampleDatasetCoreness(Dataset):
 
     def __getitem__(self, index):
 
-        s_size = random.randint(2, self.set_size - 1)
-        idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
-        test_str = " ".join([str(x) for x in idx])
-        print str(s_size)
-        print test_str
-        x = np.zeros((self.n_node, 1), dtype=np.float32)
-        # g_idx = self.non_dominated[idx]
-        # x[g_idx] = 1  # remap to the graph id
-        x[idx] = 1
-        # if self.ef > 0:
-        #     x = np.hstack((x, self.extra_feats))
-        #     x = torch.FloatTensor(x)
-        # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
-        y = 1
-        weight = 1
-        #-----------------------------------------------------------------
-        # s_size = linecache.getline(self.input_filename, 2 * index)
-        # g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
-        # idx = [int(line.rstrip()) for line in g_idex_line.split()]
+        # s_size = random.randint(2, self.set_size - 1)
+        # idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
+        # test_str = " ".join([str(x) for x in idx])
+        # print str(s_size)
+        # print test_str
         # x = np.zeros((self.n_node, 1), dtype=np.float32)
+        # # g_idx = self.non_dominated[idx]
+        # # x[g_idx] = 1  # remap to the graph id
         # x[idx] = 1
-        # y_line = linecache.getline(self.label_filename, (2 * (index+1))-1)
-        # y = [int(line.rstrip()) for line in y_line.split()]
-        # y = np.array(y)
-        # # print("y的值：")
-        # # print  y
-        # weight = y
-        # w = np.min(y).reshape((1,))
-        # y = y - w + 1
-        # y = y.astype(np.float32) / np.sum(y)
-        # y = y.astype(np.float32)
-        # # print(x.shape, y.shape)
+        # # if self.ef > 0:
+        # #     x = np.hstack((x, self.extra_feats))
+        # #     x = torch.FloatTensor(x)
+        # # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
+        # y = 1
+        # weight = 1
+        #-----------------------------------------------------------------
+        s_size = linecache.getline(self.input_filename, 2 * index)
+        g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
+        idx = [int(line.rstrip()) for line in g_idex_line.split()]
+        x = np.zeros((self.n_node, 1), dtype=np.float32)
+        x[idx] = 1
+        y_line = linecache.getline(self.label_filename, (2 * (index+1))-1)
+        y = [int(line.rstrip()) for line in y_line.split()]
+        y = np.array(y)
+        # print("y的值：")
+        # print  y
+        weight = y
+        w = np.min(y).reshape((1,))
+        y = y - w + 1
+        y = y.astype(np.float32) / np.sum(y)
+        y = y.astype(np.float32)
+        # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
     def __len__(self):
         count = len(open(self.label_filename, 'rU').readlines())
         count = count / 2
-        #----------------------------------------------------
+        # ----------------------------------------------------
         # count = 10000000
 
         return count
@@ -294,6 +294,7 @@ def load_tmp_core(fname):
             node_dict[dst] = node_cnt
             node_cnt += 1
         weight = np.random.random_sample()
+        weight =  np.float32(weight)
         Edges.append((node_dict[src], node_dict[dst], {"weight": weight}))
 
     G = nx.Graph()
@@ -306,7 +307,7 @@ def load_tmp_core(fname):
 
 # def extract_kcore_Coreness(input_folder, k):
 #     # 保证不改变节点的id
-#     fname = os.path.join(input_folder, "data.txt")
+#     fname = os.path.join(input_folder, "data.txt.txt")
 #     graph = load_graph_forCoreness(fname)  # 读data，存为图（nx.Graph()）
 #     graph.remove_edges_from(graph.selfloop_edges())  # 去除自环（实际上 load_graph(fname)已经有这步操作了）
 #     core = nx.k_core(graph, k)  # coreness问题让k=1即可
@@ -365,7 +366,7 @@ def data_preprocessing(gname, k, load_traindata=True):
     # print("gname:")
     # print gname
     G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
-    X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！需要更改
+    X_norm = np.array(G.KCoreCollapseDominate(k))  # list ！！！计算的就是k-core的followers数量+1
     # Coreness.getCoreness(4039, 88234);
     # coreness  = nx.core_number(core);
     # X_norm = []
@@ -390,7 +391,7 @@ def data_preprocessing(gname, k, load_traindata=True):
 
     nondomin_dict = to_nondomin_dict(non_dominated)
     # print non_dominated,deg_norm[non_dominated],deg_norm
-    deg_norm = np.array(deg_norm[non_dominated])
+    deg_norm = np.array(deg_norm[non_dominated])  #non_dominated是余下部分节点的标号，nondomin_dict是映射重新编号
     return (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
 
 
@@ -399,9 +400,13 @@ def data_preprocessingCoreness(gname, k, load_traindata=True, need_Xnorm=True):
 
     A = nx.adjacency_matrix(core).todense()
     A = np.array(A)
-    B = A.tolist()
+    # B = A.tolist()
     Y_train = A.astype(np.float32)
     deg_norm = np.sum(Y_train, axis=0)
+
+    del A
+    del Y_train
+    # print "dsds"
     # G = kcore.Graph()
     # G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
 
@@ -431,8 +436,8 @@ def build_dataset(input_folder, k, load_traindata=True):
         extract_kcore(input_folder, k)
     (X_norm, deg_norm, n_classes, non_dominated, nondomin_dict, core, G) = data_preprocessing(gname, k, load_traindata)
 
-    # return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G)
-    return (X_norm, n_classes, non_dominated, nondomin_dict, core, G)
+    # return (deg_norm, n_classes, non_dominated, nondomin_dict, core, G) 这才是作者的源代码
+    return (X_norm, n_classes, non_dominated, nondomin_dict, core, G)  #这是我修改的，为根据followers数量进行采样
 
 
 def build_datasetCoreness(input_folder, k, load_traindata=True):

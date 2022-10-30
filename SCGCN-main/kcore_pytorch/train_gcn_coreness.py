@@ -63,19 +63,19 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
     if args.cuda:
         adj = adj.cuda()
         model.cuda()
-    # t = time.time()
+    t = time.time()
 
     if args.earlystopping > 0:
         early_stopping = EarlyStopping(patience=args.earlystopping, verbose=False)
 
     # for step in range(args.steps):
     step = 0
-    t_begin = time. clock ()
+    # t_begin = time. clock ()
     for i, data_all in enumerate(dataloader):
-        t_end =time. clock ()
-        print("-1")
-        print ( '--------Running time: %s Seconds' %(t_end-t_begin))
-        sys.exit(1)
+        # t_end =time. clock ()
+        # print("-1")
+        # print ( '--------Running time: %s Seconds' %(t_end-t_begin))
+        # sys.exit(1)
 
         if step == args.steps:
             break
@@ -85,7 +85,7 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
         step = step+1
         model.train()
         # print("进入")
-        # data, weights, labels = next(iter(dataloader))
+        # data.txt, weights, labels = next(iter(dataloader))
         data, weights, labels = data_all
         data, weights, labels = data.float(), weights.float(), labels.float()
         if args.cuda:
@@ -116,12 +116,15 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
                   'val loss: {:^10}'.format(val_loss.item()),
                   'cur_lr: {:^10}'.format(get_lr(optimizer)),
                   'time: {:.4f}s'.format(time.time() - t))
+
+    print("the total traing time:{:.4f}s".format(time.time() - t))
     # save the checkpoint
     torch.save({
         'step': ini_step + args.steps,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss.item()}, args.model_dir)
+
     return model
 
 
@@ -165,6 +168,7 @@ def gen_kcore_union_coreness(args, model, adj):
     # X_norm, n_classes, core, _ = build_testsetCoreness(input_folder, k)
 
     gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    t_begin  = time.time()
     (X_norm, _, n_classes, core, G) = data_preprocessingCoreness(gname, k, True, False)
     orig_core = deepcopy(core)
     mask = np.zeros(shape=(n_classes,), dtype=int)
@@ -172,8 +176,8 @@ def gen_kcore_union_coreness(args, model, adj):
     extra_feats, n_feats = generate_features(core=core, n_node=n_node)
     res = []
     res_node = []
-    # seed = np.argmax(X_norm)
-    seed = 107
+    seed = np.argmax(X_norm)
+    # seed = 107
     # if verbose:
     #     print("seed: %d\t%d" % (seed, X_norm[seed]))
 
@@ -208,7 +212,7 @@ def gen_kcore_union_coreness(args, model, adj):
         t_pred = pred + mask
         oidx = np.argmax(t_pred)
         # print("max pred: %8f min pred: %8f"%(np.max(pred), np.min(pred)))
-        # must not raise exception, if so, something wrong with data.txt
+        # must not raise exception, if so, something wrong with data.txt.txt
 
 
         mask[oidx] = -1000000000.0
@@ -228,6 +232,10 @@ def gen_kcore_union_coreness(args, model, adj):
         cnt += 1
         if core.number_of_nodes() == 0:
             break
+
+    t_end  = time.time()
+    print ("the total time of the predicting:{.4f}".format(t_end-t_begin))
+
     if verbose:
 
         coreNew = copy.deepcopy(orig_core)
@@ -249,9 +257,9 @@ def gen_kcore_union_coreness(args, model, adj):
         coreness2 = np.array(list(coreness2.values()))
         corenessLoss = np.sum(coreness1 - coreness2)
         #print("generate collesped k core (union): ")
-        print ("the selected node size: ", len(res))
-        print ("the total coreness loss: ", corenessLoss )
-    return orig_core.number_of_nodes() - core.number_of_nodes()
+        print("the selected node size: ", len(res))
+        # print("the total coreness loss: ", corenessLoss )
+    return corenessLoss
 
 
 
@@ -309,7 +317,7 @@ def gen_kcore_union(args, model, adj):
         t_pred = pred + mask
         oidx = np.argmax(t_pred)
         # print("max pred: %8f min pred: %8f"%(np.max(pred), np.min(pred)))
-        # must not raise exception, if so, something wrong with data.txt
+        # must not raise exception, if so, something wrong with data.txt.txt
         g_id = non_dominated[oidx]
         mask[oidx] = -1000000000.0
         res.append(oidx)
@@ -481,7 +489,7 @@ def gen_kcore_sep(args, model, adj):
     pred_all = predict_all(args, model=model, data=data, adj=adj)
 
     while cnt < b:
-        # data.txt = np.array(res[-w:])
+        # data.txt.txt = np.array(res[-w:])
         pred = np.zeros(shape=(1, n_classes), dtype=int)
         for r in res_node:
             pred = pred + pred_all[r]  # * X_norm[r]
@@ -540,7 +548,7 @@ def main(args):
 
     train_norm, n_classes, graph= build_datasetCoreness(input_folder, k)
     if verbose:
-        print("training data.txt shape: ")
+        print("training data.txt. shape: ")
         print(train_norm.shape)
 
     # define the training dataset and dataloader
@@ -604,11 +612,14 @@ def main(args):
         print("training...")
     train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_data, ini_step)
     # predication
+
     union_result = gen_kcore_union_coreness(args, model, adj)
+
     # sep_result = gen_kcore_sep(args, model, adj)
     # ensemble_result = gen_kcore_ensemble(args, model, adj)
     # print("accuracy=%d" % (max(union_result, sep_result, ensemble_result)))
-    print("accuracy=%d" % union_result)
+    print("coreness loss =%d" % union_result)
+
 
 
 if __name__ == "__main__":
@@ -622,14 +633,14 @@ if __name__ == "__main__":
                         help="attention layer: number of experts")  # options [16, 32, 64, 128]
     parser.add_argument("--att_hid", default=128, type=int,
                         help="attention layer: hidden units")  # options [64, 128, 256]
-    parser.add_argument("--model_dir", type=str, default="./GCN_model20221025_temp8.pt")
+    parser.add_argument("--model_dir", type=str, default="./GCNmodel_Arxiv_full_b.pt")
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='Dropout rate (1 - keep probability).')
     parser.add_argument("--normalization", default="AugNormAdj",
                         help="The normalization on the adj matrix.")
 
     # Training settings
-    parser.add_argument("--batch_size", default=200000, type=int)  # options: [32, 64, 128]
+    parser.add_argument("--batch_size", default=32, type=int)  # options: [32, 64, 128]
     parser.add_argument("--steps", default=20000000, type=int)  # options:  (1000, 2000, ... 40000)
     parser.add_argument("--learning_rate", default=0.001, type=float)  # options [1e-3, 1e-4]
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -642,24 +653,24 @@ if __name__ == "__main__":
     # Others
     parser.add_argument("--extra_feats", default=0, type=int,
                         help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Socfb-Syracuse56/",
-                        help="Input data.txt folder")
-    parser.add_argument("--verbose", default=False, type=bool)
+    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Arxiv/",
+                        help="Input data.txt.txt folder")
+    parser.add_argument("--verbose", default=True, type=bool)
     # parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
     parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-    parser.add_argument("--b", default=13653, type=int, help="the result set size")
-    parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/train_input.txt", help="the path of the input data file ")
-    parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/train_label.txt",help="the path of the label file of the data sample")
+    parser.add_argument("--b", default=34546, type=int, help="the result set size")
+    parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/train_input.txt", help="the path of the input data.txt file ")
+    parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/train_label.txt",help="the path of the label file of the data.txt sample")
     parser.add_argument("--input_val_filename",
-                        default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/val_input.txt",
-                        help="the path of the input data file ")
-    parser.add_argument("--val_label_filename", default="/mnt/SCGCN/SCGCN-main/data/CollapsedCoreness/b1000/val_label.txt",
-                        help="the path of the label file of the data sample")
+                        default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/val_input.txt",
+                        help="the path of the input data.txt file ")
+    parser.add_argument("--val_label_filename", default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/val_label.txt",
+                        help="the path of the label file of the data.txt sample")
 
     # unused parameters
     '''
     parser.add_argument("--dev_data_file", default = "")
-    parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data.txt to generate/load
+    parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data.txt.txt to generate/load
     parser.add_argument('--lradjust',action='store_true', default=False, 
         help = 'Enable leraning rate adjust.(ReduceLROnPlateau)')
     parser.add_argument("--debug_samplingpercent", type=float, default=1.0, 

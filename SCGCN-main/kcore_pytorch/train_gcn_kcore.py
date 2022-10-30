@@ -20,7 +20,7 @@ from ctypes import *
 
 import os
 
-Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
+# Coreness= cdll.LoadLibrary("/mnt/SCGCN/SCGCN-main/shared_forCollapsedCoreness/libconvert.so")
 
 
 
@@ -184,7 +184,7 @@ def gen_kcore_union(args, model, adj):
 			t_pred = pred + mask
 			oidx = np.argmax(t_pred)
 			#print("max pred: %8f min pred: %8f"%(np.max(pred), np.min(pred)))      
-			# must not raise exception, if so, something wrong with data.txt
+			# must not raise exception, if so, something wrong with data.txt.txt
 			g_id = non_dominated[oidx]
 			mask[oidx] = -1000000000.0
 			res.append(oidx)
@@ -353,7 +353,7 @@ def gen_kcore_sep(args, model, adj):
 	pred_all = predict_all(args, model = model, data = data, adj = adj)
 	
 	while cnt < b:
-			#data.txt = np.array(res[-w:])
+			#data.txt.txt = np.array(res[-w:])
 			pred = np.zeros(shape=(1, n_classes), dtype=int)
 			for r in res_node:
 					pred = pred + pred_all[r] # * X_norm[r] 
@@ -448,7 +448,7 @@ def main(args):
 	scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=100, factor=0.8)
 
 	# build the adj matrix of graph
-	adj = generate_adjmx(graph, normalization)
+	adj = generate_adjmx(graph, normalization)  #大小是 the number of nodes * the number of nodes
 	adj = torch.FloatTensor(adj)
 	#criterion = torch.nn.MultiLabelMarginLoss()
 	#criterion = torch.nn.MSELoss()
@@ -506,16 +506,16 @@ if __name__ == "__main__":
 	#Others
 	parser.add_argument("--extra_feats", default=0, type=int, 
 		help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/fb", help="Input data.txt folder")
+	parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/test", help="Input data.txt.txt folder")
 	parser.add_argument("--verbose", default=True, type=bool)
 	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
-	parser.add_argument("--k", default=30, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-	parser.add_argument("--b", default=20, type=int, help = "the result set size")
+	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
+	parser.add_argument("--b", default=4, type=int, help = "the result set size")
 
 	# unused parameters
 	'''
 	parser.add_argument("--dev_data_file", default = "")
-	parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data.txt to generate/load
+	parser.add_argument("--n_eval_data", default = 1000, type = int) # number of eval data.txt.txt to generate/load
 	parser.add_argument('--lradjust',action='store_true', default=False, 
 		help = 'Enable leraning rate adjust.(ReduceLROnPlateau)')
 	parser.add_argument("--debug_samplingpercent", type=float, default=1.0, 
