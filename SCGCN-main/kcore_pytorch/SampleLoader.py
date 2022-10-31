@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from ctypes import *
 from multiprocessing import Pool
 import linecache
-
+import gc
 import os
 import copy
 
@@ -130,7 +130,7 @@ class SampleDataset(Dataset):
         w = np.min(y).reshape((1,))  # y中的最小值
         y = y - w + 1  # 区间变为从1开始
         y = y.astype(np.float32) / np.sum(y)  # 归一化的最后一步
-
+        y = y.astype(np.float32)
         # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
@@ -409,7 +409,7 @@ def data_preprocessingCoreness(gname, k, load_traindata=True, need_Xnorm=True):
     # print "dsds"
     # G = kcore.Graph()
     # G.loadUndirGraph(gname)  # load the c++ graph object ,将core用C++存储
-
+    gc.collect()
     nodesNum = core.number_of_nodes()
 
     if need_Xnorm:

@@ -16,7 +16,7 @@ import os
 import sys
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
@@ -625,13 +625,13 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser("gcn", formatter_class=ArgumentDefaultsHelpFormatter, conflict_handler="resolve")
     # Model settings
-    parser.add_argument("--n_hid1", default=64, type=int,
+    parser.add_argument("--n_hid1", default=32, type=int,
                         help="first layer of GCN: number of hidden units")  # options [64, 128, 256]
-    parser.add_argument("--n_hid2", default=64, type=int,
+    parser.add_argument("--n_hid2", default=32, type=int,
                         help="second layer of GCN: number of hidden units")  # options [64, 128, 256]
-    parser.add_argument("--n_expert", default=64, type=int,
+    parser.add_argument("--n_expert", default=32, type=int,
                         help="attention layer: number of experts")  # options [16, 32, 64, 128]
-    parser.add_argument("--att_hid", default=128, type=int,
+    parser.add_argument("--att_hid", default=32, type=int,
                         help="attention layer: hidden units")  # options [64, 128, 256]
     parser.add_argument("--model_dir", type=str, default="./GCNmodel_Arxiv_full_b.pt")
     parser.add_argument('--dropout', type=float, default=0.5,
@@ -640,7 +640,7 @@ if __name__ == "__main__":
                         help="The normalization on the adj matrix.")
 
     # Training settings
-    parser.add_argument("--batch_size", default=32, type=int)  # options: [32, 64, 128]
+    parser.add_argument("--batch_size", default=4, type=int)  # options: [32, 64, 128]
     parser.add_argument("--steps", default=20000000, type=int)  # options:  (1000, 2000, ... 40000)
     parser.add_argument("--learning_rate", default=0.001, type=float)  # options [1e-3, 1e-4]
     parser.add_argument('--no-cuda', action='store_true', default=False,

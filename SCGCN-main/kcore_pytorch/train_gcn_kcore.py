@@ -46,10 +46,11 @@ def validate(args, model, adj, val_data):
 		adj = adj.cuda()
 		data, weights, labels = data.cuda(), weights.cuda(), labels.cuda()
 	model.eval()
-	criterion = torch.nn.MSELoss()
-	outputs = model(data, adj)
-	outputs = outputs.squeeze()
-	val_loss = criterion(outputs, labels)
+	with torch.no_grad():
+		criterion = torch.nn.MSELoss()
+		outputs = model(data, adj)
+		outputs = outputs.squeeze()
+		val_loss = criterion(outputs, labels)
 	return val_loss
 
 
@@ -70,6 +71,7 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
 		early_stopping = EarlyStopping(patience=args.earlystopping, verbose=False)
 	
 	for step in range(args.steps):
+		torch.cuda.empty_cache()  # 释放显存
 		model.train()
 		data, weights, labels = next(iter(dataloader))
 		data, weights, labels = data.float(), weights.float(), labels.float()
@@ -77,15 +79,15 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
 			data, weights, labels = data.cuda(), weights.cuda(), labels.cuda()
 
 		optimizer.zero_grad()
-		try:
-			outputs = model(data, adj)
-		except RuntimeError as exception:
-			if "out of memory" in str(exception):
-				print("WARNING: out of memory")
-				if hasattr(torch.cuda, 'empty_cache'):
-					torch.cuda.empty_cache()
-			else:
-				raise exception
+		# try:
+		# 	outputs = model(data, adj)
+		# except RuntimeError as exception:
+		# 	if "out of memory" in str(exception):
+		# 		print("WARNING: out of memory")
+		# 		if hasattr(torch.cuda, 'empty_cache'):
+		# 			torch.cuda.empty_cache()
+		# 	else:
+		# 		raise exception
 
 		outputs = model(data, adj)
 		outputs = outputs.squeeze()
@@ -96,8 +98,8 @@ def train(args, model, dataloader, adj, criterion, optimizer, scheduler, val_dat
 
 		loss.backward()
 		optimizer.step()
-		with torch.no_grad():
-			val_loss = validate(args, model, adj, val_data)
+
+		val_loss = validate(args, model, adj, val_data)
 
 		scheduler.step(val_loss) # learn rate decay
 		if args.earlystopping > 0:
@@ -125,6 +127,8 @@ def predict_one(args, model, data, adj):
 	if args.cuda:
 		adj = adj.cuda()
 		data = data.cuda()
+
+	model.eval()
 	with torch.no_grad():
 
 		output = model(data, adj)
@@ -507,7 +511,7 @@ if __name__ == "__main__":
 		help="The normalization on the adj matrix.")
 
 	# Training settings
-	parser.add_argument("--batch_size", default=16, type=int) # options: [32, 64, 128]
+	parser.add_argument("--batch_size", default=4, type=int) # options: [32, 64, 128]
 	parser.add_argument("--steps", default=500, type=int)  # options:  (1000, 2000, ... 40000)
 	parser.add_argument("--learning_rate", default = 0.001, type=float) #options [1e-3, 1e-4]
 	parser.add_argument('--no-cuda', action='store_true', default=False, 
@@ -524,7 +528,7 @@ if __name__ == "__main__":
 	parser.add_argument("--verbose", default=True, type=bool)
 	#parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
 	parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-	parser.add_argument("--b", default=4, type=int, help = "the result set size")
+	parser.add_argument("--b", default=3964, type=int, help = "the result set size")
 
 	# unused parameters
 	'''
