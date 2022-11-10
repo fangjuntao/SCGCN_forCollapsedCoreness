@@ -1,23 +1,31 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from pygcn.layers import GraphConvolution, FC, Attention
-
+# from pygcn.layers import FC, Attention
+#
+# from torch_geometric.nn import GCNConv
 
 class GCN(nn.Module):
     def __init__(self, nfeat, nhid, nclass, dropout):
         super(GCN, self).__init__()
+        #
+        # self.gc1 = GCNConv(nfeat, nhid)
+        # self.gc2 = GCNConv(nhid, nhid)
+        # self.gc3 = GCNConv(nhid, nclass)
+
+
 
         self.gc1 = GraphConvolution(nfeat, nhid)
         self.gc2 = GraphConvolution(nhid, nhid)
         self.gc3 = GraphConvolution(nhid, nclass)
         self.dropout = dropout
 
-    def forward(self, x, adj):
-        x = F.relu(self.gc1(x, adj))
+    def forward(self, x, edge_index):
+        x = F.relu(self.gc1(x, edge_index))
         x = F.dropout(x, self.dropout, training=self.training)
-        x = F.relu(self.gc2(x, adj))
+        x = F.relu(self.gc2(x, edge_index))
         x = F.dropout(x, self.dropout, training=self.training)
-        x = self.gc3(x, adj)
+        x = self.gc3(x, edge_index)
         return F.log_softmax(x, dim = 1)
         #return F.sigmoid(x) #F.log_softmax(x, dim=1)
 

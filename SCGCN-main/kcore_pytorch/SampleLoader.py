@@ -7,14 +7,12 @@ import torch
 import random
 import kcore
 import time
-import itertools
+
 from copy import deepcopy
-from sets import Set
-from math import log
+
 import scipy.sparse as sp
 from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
-from ctypes import *
+
 from multiprocessing import Pool
 import linecache
 import gc
@@ -167,45 +165,45 @@ class SampleDatasetCoreness(Dataset):
 
     def __getitem__(self, index):
 
-        # s_size = random.randint(2, self.set_size - 1)
-        # idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
-        # test_str = " ".join([str(x) for x in idx])
-        # print str(s_size)
-        # print test_str
-        # x = np.zeros((self.n_node, 1), dtype=np.float32)
-        # # g_idx = self.non_dominated[idx]
-        # # x[g_idx] = 1  # remap to the graph id
-        # x[idx] = 1
-        # # if self.ef > 0:
-        # #     x = np.hstack((x, self.extra_feats))
-        # #     x = torch.FloatTensor(x)
-        # # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
-        # y = 1
-        # weight = 1
-        #-----------------------------------------------------------------
-        s_size = linecache.getline(self.input_filename, 2 * index)
-        g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
-        idx = [int(line.rstrip()) for line in g_idex_line.split()]
+        s_size = random.randint(2, self.set_size - 1)
+        idx = np.random.choice(self.n_classes, size=s_size, replace=False, p=self.p)
+        test_str = " ".join([str(x) for x in idx])
+        print str(s_size)
+        print test_str
         x = np.zeros((self.n_node, 1), dtype=np.float32)
+        # g_idx = self.non_dominated[idx]
+        # x[g_idx] = 1  # remap to the graph id
         x[idx] = 1
-        y_line = linecache.getline(self.label_filename, (2 * (index+1))-1)
-        y = [int(line.rstrip()) for line in y_line.split()]
-        y = np.array(y)
-        # print("y的值：")
-        # print  y
-        weight = y
-        w = np.min(y).reshape((1,))
-        y = y - w + 1
-        y = y.astype(np.float32) / np.sum(y)
-        y = y.astype(np.float32)
-        # print(x.shape, y.shape)
+        # if self.ef > 0:
+        #     x = np.hstack((x, self.extra_feats))
+        #     x = torch.FloatTensor(x)
+        # y = collapsedCorenessLabelGeneration(self.G, idx)  # 记得修改
+        y = 1
+        weight = 1
+        #-----------------------------------------------------------------
+        # s_size = linecache.getline(self.input_filename, 2 * index)
+        # g_idex_line = linecache.getline(self.input_filename, 2 * (index + 1))
+        # idx = [int(line.rstrip()) for line in g_idex_line.split()]
+        # x = np.zeros((self.n_node, 1), dtype=np.float32)
+        # x[idx] = 1
+        # y_line = linecache.getline(self.label_filename, (2 * (index+1))-1)
+        # y = [int(line.rstrip()) for line in y_line.split()]
+        # y = np.array(y)
+        # # print("y的值：")
+        # # print  y
+        # weight = y
+        # w = np.min(y).reshape((1,))
+        # y = y - w + 1
+        # y = y.astype(np.float32) / np.sum(y)
+        # y = y.astype(np.float32)
+        # # print(x.shape, y.shape)
         return x, weight, y  # return (features, weight), label
 
     def __len__(self):
-        count = len(open(self.label_filename, 'rU').readlines())
-        count = count / 2
+        # count = len(open(self.label_filename, 'rU').readlines())
+        # count = count / 2
         # ----------------------------------------------------
-        # count = 10000000
+        count = 10000000
 
         return count
 
@@ -449,6 +447,16 @@ def build_datasetCoreness(input_folder, k, load_traindata=True):
     (X_norm, deg_norm, n_classes, core) = data_preprocessingCoreness(gname, k, load_traindata, False)
 
     return deg_norm, n_classes, core
+def build_datasetCoreness2(input_folder, k, load_traindata=True):
+    gname = os.path.join(input_folder, "temp_core_" + str(k) + ".txt")
+    core_exists = os.path.isfile(gname)
+    if not core_exists:  # if not have the core file, compute it on the fly
+        extract_kcore(input_folder, k)
+
+    (X_norm, deg_norm, n_classes, core) = data_preprocessingCoreness(gname, k, load_traindata, True)
+
+    return X_norm, n_classes, core
+
 
 
 def build_testset(input_folder, k):

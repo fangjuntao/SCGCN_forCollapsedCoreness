@@ -1,8 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="root@172.22.107.75:10034 (6)" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="root@172.22.107.75:10034 (9)" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
     <option name="confirmBeforeUploading" value="false" />
     <serverData>
+      <paths name="Lxm0@172.22.105.227:22">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="Lxm0@172.22.105.227:22 (2)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/Lxm0/Fangjuntao/SCGCN-main" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="Lxm0@172.22.105.227:22 (3)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="root@172.22.107.75:10026">
         <serverdata>
           <mappings>
@@ -130,6 +151,27 @@
         </serverdata>
       </paths>
       <paths name="root@172.22.107.75:10034 (6)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/mnt/SCGCN" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.22.107.75:10034 (7)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.22.107.75:10034 (8)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.22.107.75:10034 (9)">
         <serverdata>
           <mappings>
             <mapping deploy="/mnt/SCGCN" local="$PROJECT_DIR$" />

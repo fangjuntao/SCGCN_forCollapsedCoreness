@@ -6,7 +6,7 @@ from argparse import ArgumentParser, FileType, ArgumentDefaultsHelpFormatter
 
 import torch.nn.functional as F
 import torch.optim as optim
-
+from torch.utils.data import _utils
 from pygcn import GCN, GCNAtt
 from earlystopping import EarlyStopping
 from SampleLoader import *
@@ -543,10 +543,13 @@ def main(args):
     verbose = args.verbose
     set_size = args.b
     k = args.k
-
+    EveryNodeFollowers_filename = args.EveryNodeFollowers_filename
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    train_norm, n_classes, graph= build_datasetCoreness(input_folder, k)
+    train_norm, n_classes, graph = build_datasetCoreness(input_folder, k)
+    # nodeFollowers_line = linecache.getline(EveryNodeFollowers_filename,1)
+    # X_norm = [int(line.rstrip()) for line in nodeFollowers_line.split()]
+    # train_norm = np.array(X_norm)
     if verbose:
         print("training data.txt. shape: ")
         print(train_norm.shape)
@@ -561,7 +564,7 @@ def main(args):
                                     extra_feats=extra_feats, ef=ef,
                                     G=graph, set_size=set_size,
                                     k=k, batch_size=batch_size)  # 得到不同的训练 size
-    dataloader = DataLoader(dataset, batch_size=batch_size,
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                             shuffle=False, sampler=None)
     # define the validation dataset
     val_dataset = SampleDatasetCoreness(input_filename=args.input_val_filename, label_name=args.val_label_filename,n_classes=n_classes, n_node=graph.number_of_nodes(),
@@ -570,7 +573,7 @@ def main(args):
                                 G=graph, set_size=set_size,
                                 k=k, batch_size=100)
 
-    val_dataloader = DataLoader(val_dataset, batch_size=100,
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=100,
                                 shuffle=False, sampler=None)
 
     val_data = next(iter(val_dataloader))
@@ -588,9 +591,10 @@ def main(args):
 
     # build the adj matrix of graph
     adj = generate_adjmx(graph, normalization)
-    adj = torch.FloatTensor(adj)
+    adj = torch.FloatTensor(adj)   # FloatTensor 默认生成float32
     # criterion = torch.nn.MultiLabelMarginLoss()
     # criterion = torch.nn.MSELoss()
+    edge_idx_device = torch.tensor(np.where(adj != 0), dtype=torch.long)
     criterion = torch.nn.BCELoss()
 
     ini_step = 0
@@ -640,7 +644,7 @@ if __name__ == "__main__":
                         help="The normalization on the adj matrix.")
 
     # Training settings
-    parser.add_argument("--batch_size", default=4, type=int)  # options: [32, 64, 128]
+    parser.add_argument("--batch_size", default=64000, type=int)  # options: [32, 64, 128]
     parser.add_argument("--steps", default=20000000, type=int)  # options:  (1000, 2000, ... 40000)
     parser.add_argument("--learning_rate", default=0.001, type=float)  # options [1e-3, 1e-4]
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -653,18 +657,18 @@ if __name__ == "__main__":
     # Others
     parser.add_argument("--extra_feats", default=0, type=int,
                         help="whether or not enable extra feats (e.g.,core num, etc.) 0 Disables/1 Enable")
-    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/Arxiv/",
+    parser.add_argument("--input_data_folder", default="/mnt/SCGCN/SCGCN-main/data/socfb-Northeastern19/",
                         help="Input data.txt.txt folder")
-    parser.add_argument("--verbose", default=True, type=bool)
+    parser.add_argument("--verbose", default=False, type=bool)
     # parser.add_argument("--k", default=33, type=int, help = "the k core to be collesped") # options [20, 30, 40]
     parser.add_argument("--k", default=1, type=int, help="Collapsed Coreness,k ==1")  # options [20, 30, 40]
-    parser.add_argument("--b", default=34546, type=int, help="the result set size")
-    parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/train_input.txt", help="the path of the input data.txt file ")
-    parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/train_label.txt",help="the path of the label file of the data.txt sample")
+    parser.add_argument("--b", default=20, type=int, help="the result set size")
+    parser.add_argument("--input_train_filename",default="/mnt/SCGCN/SCGCN-main/data/fb/fb/b20/train_input.txt", help="the path of the input data.txt file ")
+    parser.add_argument("--train_label_filename",default="/mnt/SCGCN/SCGCN-main/data/fb/fb/b20/train_label.txt",help="the path of the label file of the data.txt sample")
     parser.add_argument("--input_val_filename",
-                        default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/val_input.txt",
+                        default="/mnt/SCGCN/SCGCN-main/data/fb/fb/b20/val_input.txt",
                         help="the path of the input data.txt file ")
-    parser.add_argument("--val_label_filename", default="/mnt/SCGCN/SCGCN-main/data/Arxiv/full_b/val_label.txt",
+    parser.add_argument("--val_label_filename", default="/mnt/SCGCN/SCGCN-main/fb/fb/b20/val_label.txt",
                         help="the path of the label file of the data.txt sample")
 
     # unused parameters
